@@ -293,6 +293,21 @@ class BDENTAL_4D_Props(bpy.types.PropertyGroup):
         default="None",
         description="Active_Operator",
     )
+    #######################
+    # Guide Components :
+
+    TeethLibList = ["Christian Brenes Teeth Library"]
+    items = []
+    for i in range(len(TeethLibList)):
+        item = (str(TeethLibList[i]), str(TeethLibList[i]), str(""), int(i))
+        items.append(item)
+
+    TeethLibrary: EnumProperty(
+        items=items,
+        description="Teeth Library",
+        default="Christian Brenes Teeth Library",
+    )
+    #######################
     SleeveDiameter: FloatProperty(
         name="Sleeve Diameter",
         description="Sleeve Diameter",
@@ -304,6 +319,7 @@ class BDENTAL_4D_Props(bpy.types.PropertyGroup):
         step=1,
         precision=1,
     )
+    #######################
     SleeveHeight: FloatProperty(
         name="Sleeve Height",
         description="Sleeve Height",
@@ -315,6 +331,7 @@ class BDENTAL_4D_Props(bpy.types.PropertyGroup):
         step=1,
         precision=1,
     )
+    #######################
     HoleDiameter: FloatProperty(
         name="Hole Diameter",
         description="Hole Diameter",
@@ -326,6 +343,7 @@ class BDENTAL_4D_Props(bpy.types.PropertyGroup):
         step=1,
         precision=1,
     )
+    #######################
     HoleOffset: FloatProperty(
         name="Hole Offset",
         description="Sleeve Offset",
@@ -392,6 +410,23 @@ class BDENTAL_4D_Props(bpy.types.PropertyGroup):
         items.append(item)
 
     cutting_mode: EnumProperty(items=items, description="", default="Cut inner")
+
+    TubeWidth: FloatProperty(description="Tube Width ", default=2, step=1, precision=2)
+
+    TubeCloseModeList = ["Open Tube", "Close Tube"]
+    items = []
+    for i in range(len(TubeCloseModeList)):
+        item = (str(TubeCloseModeList[i]), str(TubeCloseModeList[i]), str(""), int(i))
+        items.append(item)
+    TubeCloseMode: EnumProperty(items=items, description="", default="Close Tube")
+    BaseHeight: FloatProperty(
+        description="Base Height ", default=10, step=1, precision=2
+    )
+    SurveyInfo: StringProperty(
+        name="Models Survey Local Z",
+        default="{}",
+        description="Models Survey Local Z",
+    )
 
 
 #################################################################################################

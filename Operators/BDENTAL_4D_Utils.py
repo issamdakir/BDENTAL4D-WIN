@@ -1992,6 +1992,104 @@ def CuttingCurveAdd():
 
 
 #######################################################################################
+def AddTube(context, CuttingTarget):
+
+    BDENTAL_4D_Props = bpy.context.scene.BDENTAL_4D_Props
+    # Prepare scene settings :
+    bpy.ops.transform.select_orientation(orientation="GLOBAL")
+    bpy.context.scene.tool_settings.use_snap = True
+    bpy.context.scene.tool_settings.snap_elements = {"FACE"}
+    bpy.context.scene.tool_settings.transform_pivot_point = "INDIVIDUAL_ORIGINS"
+
+    # ....Add Curve ....... :
+    bpy.ops.curve.primitive_bezier_curve_add(
+        radius=1, enter_editmode=False, align="CURSOR"
+    )
+    # Set cutting_tool name :
+    TubeObject = context.view_layer.objects.active
+    TubeObject.name = "BDENTAL4D-Tube"
+    TubeData = TubeObject.data
+    TubeData.name = "BDENTAL4D-Tube-Mesh"
+
+    # Tube settings :
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.curve.select_all(action="DESELECT")
+    TubeData.splines[0].bezier_points[-1].select_control_point = True
+    bpy.ops.curve.dissolve_verts()
+    bpy.ops.curve.select_all(action="SELECT")
+    bpy.ops.view3d.snap_selected_to_cursor()
+
+    TubeData.dimensions = "3D"
+    TubeData.twist_smooth = 3
+    bpy.ops.curve.handle_type_set(type="AUTOMATIC")
+    TubeData.bevel_depth = BDENTAL_4D_Props.TubeWidth
+    TubeData.bevel_resolution = 10
+    bpy.context.scene.tool_settings.curve_paint_settings.error_threshold = 1
+    bpy.context.scene.tool_settings.curve_paint_settings.corner_angle = 0.785398
+    bpy.context.scene.tool_settings.curve_paint_settings.depth_mode = "SURFACE"
+    bpy.context.scene.tool_settings.curve_paint_settings.surface_offset = 0
+    bpy.context.scene.tool_settings.curve_paint_settings.use_offset_absolute = True
+
+    # Add color material :
+    TubeMat = bpy.data.materials.get("TubeMat") or bpy.data.materials.new("TubeMat")
+    TubeMat.diffuse_color = [0.03, 0.20, 0.14, 1.0]  # [0.1, 0.4, 1.0, 1.0]
+    TubeMat.roughness = 0.3
+
+    TubeObject.active_material = TubeMat
+    bpy.ops.object.mode_set(mode="OBJECT")
+    bpy.ops.wm.tool_set_by_id(name="builtin.cursor")
+    bpy.context.space_data.overlay.show_outline_selected = False
+
+    bpy.ops.object.modifier_add(type="SHRINKWRAP")
+    bpy.context.object.modifiers["Shrinkwrap"].target = CuttingTarget
+    bpy.context.object.modifiers["Shrinkwrap"].wrap_mode = "ABOVE_SURFACE"
+    bpy.context.object.modifiers["Shrinkwrap"].use_apply_on_spline = True
+
+    return TubeObject
+
+
+def DeleteTubePoint(TubeObject):
+    bpy.ops.object.mode_set(mode="OBJECT")
+
+    TubeData = TubeObject.data
+
+    try:
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.curve.select_all(action="DESELECT")
+        points = TubeData.splines[0].bezier_points[:]
+        points[-1].select_control_point = True
+        points = TubeData.splines[0].bezier_points[:]
+        if len(points) > 1:
+            bpy.ops.curve.delete(type="VERT")
+            points = TubeData.splines[0].bezier_points[:]
+            bpy.ops.curve.select_all(action="SELECT")
+            bpy.ops.curve.handle_type_set(type="AUTOMATIC")
+            bpy.ops.curve.select_all(action="DESELECT")
+            points = TubeData.splines[0].bezier_points[:]
+            points[-1].select_control_point = True
+
+        bpy.ops.object.mode_set(mode="OBJECT")
+
+    except Exception:
+        pass
+
+
+def ExtrudeTube(TubeObject):
+
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.curve.extrude(mode="INIT")
+    bpy.ops.view3d.snap_selected_to_cursor()
+    bpy.ops.curve.select_all(action="SELECT")
+    bpy.ops.curve.handle_type_set(type="AUTOMATIC")
+    bpy.ops.curve.select_all(action="DESELECT")
+    points = TubeObject.data.splines[0].bezier_points[:]
+    points[-1].select_control_point = True
+    bpy.ops.object.mode_set(mode="OBJECT")
+
+
+#######################################################################################
+
+
 def CuttingCurveAdd2():
     # Prepare scene settings :
     bpy.ops.transform.select_orientation(orientation="GLOBAL")
@@ -2585,7 +2683,7 @@ def VertexPaintCut(mode):
 
     if mode == "Cut":
         bpy.ops.mesh.loop_to_region()
-        bpy.ops.bdental.separate_objects(SeparateMode="Selection")
+        bpy.ops.bdental4d.separate_objects(SeparateMode="Selection")
 
     if mode == "Make Copy (Shell)":
         bpy.ops.mesh.loop_to_region()
@@ -2706,3 +2804,50 @@ def CursorToVoxelPoint(Preffix, CursorMove=False):
     #############################################
 
     return VoxelPointCo
+
+
+def Metaball_Splint(shell, thikness):
+    #############################################################
+    # Add Metaballs :
+
+    radius = thikness * 5 / 8
+    bpy.ops.object.select_all(action="DESELECT")
+    shell.select_set(True)
+    bpy.context.view_layer.objects.active = shell
+
+    vcords = [shell.matrix_world @ v.co for v in shell.data.vertices]
+    mball_elements_cords = [vco - vcords[0] for vco in vcords[1:]]
+
+    bpy.ops.object.mode_set(mode="OBJECT")
+    bpy.ops.object.select_all(action="DESELECT")
+
+    bpy.ops.object.metaball_add(
+        type="BALL", radius=radius, enter_editmode=False, location=vcords[0]
+    )
+
+    mball_obj = bpy.context.view_layer.objects.active
+
+    mball = mball_obj.data
+    mball.resolution = 0.6
+    bpy.context.object.data.update_method = "FAST"
+
+    for i in range(len(mball_elements_cords)):
+        element = mball.elements.new()
+        element.co = mball_elements_cords[i]
+        element.radius = radius * 2
+
+    bpy.ops.object.convert(target="MESH")
+
+    splint = bpy.context.view_layer.objects.active
+    splint.name = "BDENTAL4D_Splint"
+    splint_mesh = splint.data
+    splint_mesh.name = "BDENTAL4D_Splint_mesh"
+
+    mat = bpy.data.materials.get("BDENTAL4D_splint_mat") or bpy.data.materials.new(
+        "BDENTAL4D_splint_mat"
+    )
+    mat.diffuse_color = [0.0, 0.6, 0.8, 1.0]
+    splint.active_material = mat
+    bpy.ops.object.select_all(action="DESELECT")
+
+    return splint

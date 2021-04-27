@@ -47,7 +47,7 @@ class BDENTAL_4D_PT_MainPanel(bpy.types.Panel):
 
         row = box.row()
         row.alignment = "CENTER"
-        row.operator("bdental.template", text="BDENTAL_4D THEME")
+        row.operator("bdental4d.template", text="BDENTAL_4D THEME")
 
 
 class BDENTAL_4D_PT_ScanPanel(bpy.types.Panel):
@@ -101,7 +101,7 @@ class BDENTAL_4D_PT_ScanPanel(bpy.types.Panel):
                     row = Box.row()
                     row.alignment = "CENTER"
                     row.scale_y = 2
-                    row.operator("bdental.volume_render", icon="IMPORT")
+                    row.operator("bdental4d.volume_render", icon="IMPORT")
             if BDENTAL_4D_Props.DataType == "3D Image File":
 
                 row = layout.row()
@@ -118,13 +118,13 @@ class BDENTAL_4D_PT_ScanPanel(bpy.types.Panel):
                     row = Box.row()
                     row.alignment = "CENTER"
                     row.scale_y = 2
-                    row.operator("bdental.volume_render", icon="IMPORT")
+                    row.operator("bdental4d.volume_render", icon="IMPORT")
         if context.object:
             if context.object.name.startswith("BD") and context.object.name.endswith(
                 "CTVolume"
             ):
                 row = layout.row()
-                row.operator("bdental.reset_ctvolume_position")
+                row.operator("bdental4d.reset_ctvolume_position")
                 row = layout.row()
                 row.label(text=f"Threshold {Wmin} to {Wmax} HU :")
                 row = layout.row()
@@ -152,16 +152,16 @@ class BDENTAL_4D_PT_ScanPanel(bpy.types.Panel):
 
                 Box = layout.box()
                 row = Box.row()
-                row.operator("bdental.multitresh_segment")
+                row.operator("bdental4d.multitresh_segment")
             if context.object.name.startswith("BD") and context.object.name.endswith(
                 ("CTVolume", "SEGMENTATION")
             ):
                 row = Box.row()
                 split = row.split()
                 col = split.column()
-                col.operator("bdental.addslices", icon="EMPTY_AXIS")
+                col.operator("bdental4d.addslices", icon="EMPTY_AXIS")
                 col = split.column()
-                col.operator("bdental.multiview")
+                col.operator("bdental4d.multiview")
 
 
 class BDENTAL_4D_PT_Measurements(bpy.types.Panel):
@@ -179,9 +179,9 @@ class BDENTAL_4D_PT_Measurements(bpy.types.Panel):
         layout = self.layout
         Box = layout.box()
         row = Box.row()
-        row.operator("bdental.add_markup_point")
-        row.operator("bdental.add_reference_planes")
-        if BDENTAL_4D_Props.ActiveOperator == "bdental.add_reference_planes":
+        row.operator("bdental4d.add_markup_point")
+        row.operator("bdental4d.add_reference_planes")
+        if BDENTAL_4D_Props.ActiveOperator == "bdental4d.add_reference_planes":
             Box = layout.box()
             Message = [
                 "Click to place cursor, <ENTER> to Add point",
@@ -194,7 +194,7 @@ class BDENTAL_4D_PT_Measurements(bpy.types.Panel):
                 row.alert = True
                 row.label(text=line)
         row = Box.row()
-        row.operator("bdental.ctvolume_orientation")
+        row.operator("bdental4d.ctvolume_orientation")
 
 
 class BDENTAL_4D_PT_MeshesTools_Panel(bpy.types.Panel):
@@ -216,30 +216,32 @@ class BDENTAL_4D_PT_MeshesTools_Panel(bpy.types.Panel):
         row = layout.row()
         row.label(text="PARENT / JOIN :")
         row = layout.row()
-        row.operator("bdental.parent_object", text="Parent", icon="LINKED")
+        row.operator("bdental4d.parent_object", text="Parent", icon="LINKED")
         row.operator(
-            "bdental.unparent_objects", text="Un-Parent", icon="LIBRARY_DATA_OVERRIDE"
+            "bdental4d.unparent_objects", text="Un-Parent", icon="LIBRARY_DATA_OVERRIDE"
         )
-        row.operator("bdental.join_objects", text="Join", icon="SNAP_FACE")
-        row.operator("bdental.separate_objects", text="Separate", icon="SNAP_VERTEX")
+        row.operator("bdental4d.join_objects", text="Join", icon="SNAP_FACE")
+        row.operator("bdental4d.separate_objects", text="Separate", icon="SNAP_VERTEX")
 
         # Align Tools :
         layout.row().separator()
         row = layout.row()
         row.label(text="Align Tools")
         row = layout.row()
-        row.operator("bdental.align_to_front", text="ALIGN FRONT", icon="AXIS_FRONT")
-        row.operator("bdental.to_center", text="TO CENTER", icon="SNAP_FACE_CENTER")
-        row.operator("bdental.center_cursor", text="Center Cursor", icon="PIVOT_CURSOR")
+        row.operator("bdental4d.align_to_front", text="ALIGN FRONT", icon="AXIS_FRONT")
+        row.operator("bdental4d.to_center", text="TO CENTER", icon="SNAP_FACE_CENTER")
+        row.operator(
+            "bdental4d.center_cursor", text="Center Cursor", icon="PIVOT_CURSOR"
+        )
 
         split = layout.split(factor=2 / 3, align=False)
         col = split.column()
         row = col.row()
-        row.operator("bdental.occlusalplane", text="OCCLUSAL PLANE")
+        row.operator("bdental4d.occlusalplane", text="OCCLUSAL PLANE")
         col = split.column()
         row = col.row()
         row.alert = True
-        row.operator("bdental.occlusalplaneinfo", text="INFO", icon="INFO")
+        row.operator("bdental4d.occlusalplaneinfo", text="INFO", icon="INFO")
 
         # Model Repair Tools :
         layout.row().separator()
@@ -250,11 +252,13 @@ class BDENTAL_4D_PT_MeshesTools_Panel(bpy.types.Panel):
         col = split.column()
 
         row = col.row(align=True)
-        row.operator("bdental.decimate", text="DECIMATE", icon="MOD_DECIM")
+        row.operator("bdental4d.decimate", text="DECIMATE", icon="MOD_DECIM")
         row.prop(BDENTAL_4D_Props, "decimate_ratio", text="")
         row = col.row()
-        row.operator("bdental.fill", text="FILL", icon="OUTLINER_OB_LIGHTPROBE")
-        row.operator("bdental.retopo_smooth", text="RETOPO SMOOTH", icon="BRUSH_SMOOTH")
+        row.operator("bdental4d.fill", text="FILL", icon="OUTLINER_OB_LIGHTPROBE")
+        row.operator(
+            "bdental4d.retopo_smooth", text="RETOPO SMOOTH", icon="BRUSH_SMOOTH"
+        )
         try:
             ActiveObject = bpy.context.view_layer.objects.active
             if ActiveObject:
@@ -268,9 +272,9 @@ class BDENTAL_4D_PT_MeshesTools_Panel(bpy.types.Panel):
         col = split.column()
         row = col.row()
         # row.scale_y = 2
-        row.operator("bdental.clean_mesh", text="CLEAN MESH", icon="BRUSH_DATA")
+        row.operator("bdental4d.clean_mesh", text="CLEAN MESH", icon="BRUSH_DATA")
         row = col.row()
-        row.operator("bdental.voxelremesh")
+        row.operator("bdental4d.voxelremesh")
 
         # Cutting Tools :
         layout.row().separator()
@@ -280,13 +284,15 @@ class BDENTAL_4D_PT_MeshesTools_Panel(bpy.types.Panel):
         row.prop(BDENTAL_4D_Props, "Cutting_Tools_Types_Prop", text="")
         if BDENTAL_4D_Props.Cutting_Tools_Types_Prop == "Curve Cutter 1":
             row = layout.row()
-            row.operator("bdental.curvecutteradd", icon="GP_SELECT_STROKES")
-            row.operator("bdental.curvecuttercut", icon="GP_MULTIFRAME_EDITING")
+            row.operator("bdental4d.curvecutteradd", icon="GP_SELECT_STROKES")
+            row.operator("bdental4d.curvecuttercut", icon="GP_MULTIFRAME_EDITING")
 
         elif BDENTAL_4D_Props.Cutting_Tools_Types_Prop == "Curve Cutter 2":
             row = layout.row()
-            row.operator("bdental.curvecutteradd2", icon="GP_SELECT_STROKES")
-            row.operator("bdental.curvecutter2_shortpath", icon="GP_MULTIFRAME_EDITING")
+            row.operator("bdental4d.curvecutteradd2", icon="GP_SELECT_STROKES")
+            row.operator(
+                "bdental4d.curvecutter2_shortpath", icon="GP_MULTIFRAME_EDITING"
+            )
 
         elif BDENTAL_4D_Props.Cutting_Tools_Types_Prop == "Square Cutting Tool":
 
@@ -296,18 +302,18 @@ class BDENTAL_4D_PT_MeshesTools_Panel(bpy.types.Panel):
             row.prop(BDENTAL_4D_Props, "cutting_mode", text="")
 
             row = layout.row()
-            row.operator("bdental.square_cut")
-            row.operator("bdental.square_cut_confirm")
-            row.operator("bdental.square_cut_exit")
+            row.operator("bdental4d.square_cut")
+            row.operator("bdental4d.square_cut_confirm")
+            row.operator("bdental4d.square_cut_exit")
 
         elif BDENTAL_4D_Props.Cutting_Tools_Types_Prop == "Paint Cutter":
 
             row = layout.row()
-            row.operator("bdental.paintarea_toggle")
-            row.operator("bdental.paintarea_plus", text="", icon="ADD")
-            row.operator("bdental.paintarea_minus", text="", icon="REMOVE")
+            row.operator("bdental4d.paintarea_toggle")
+            row.operator("bdental4d.paintarea_plus", text="", icon="ADD")
+            row.operator("bdental4d.paintarea_minus", text="", icon="REMOVE")
             row = layout.row()
-            row.operator("bdental.paint_cut")
+            row.operator("bdental4d.paint_cut")
 
 
 class BDENTAL_4D_PT_Guide(bpy.types.Panel):
@@ -324,7 +330,9 @@ class BDENTAL_4D_PT_Guide(bpy.types.Panel):
         BDENTAL_4D_Props = context.scene.BDENTAL_4D_Props
         layout = self.layout
         Box = layout.box()
-
+        row = Box.row()
+        row.prop(BDENTAL_4D_Props, "TeethLibrary")
+        row.operator("bdental4d.add_teeth")
         row = Box.row()
         row.prop(BDENTAL_4D_Props, "SleeveDiameter")
         row.prop(BDENTAL_4D_Props, "SleeveHeight")
@@ -333,8 +341,26 @@ class BDENTAL_4D_PT_Guide(bpy.types.Panel):
         row.prop(BDENTAL_4D_Props, "HoleOffset")
 
         row = Box.row()
-        row.operator("bdental.add_implant")
-        row.operator("bdental.add_sleeve")
+        row.operator("bdental4d.add_implant")
+        row.operator("bdental4d.add_sleeve")
+
+        layout.separator()
+        Box = layout.box()
+        row = Box.row()
+        row.prop(BDENTAL_4D_Props, "BaseHeight")
+        row.operator("bdental4d.model_base")
+        row.operator("bdental4d.survey")
+        row = Box.row()
+        row.operator("bdental4d.block_model")
+
+        Box = layout.box()
+        row = Box.row()
+        row.prop(BDENTAL_4D_Props, "TubeWidth")
+        row.prop(BDENTAL_4D_Props, "TubeCloseMode")
+        row = Box.row()
+        row.operator("bdental4d.add_tube")
+        row = Box.row()
+        row.operator("bdental4d.add_splint")
 
 
 #################################################################################################

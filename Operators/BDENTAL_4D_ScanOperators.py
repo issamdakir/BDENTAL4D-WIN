@@ -34,10 +34,10 @@ from vtk import vtkCommand
 # from . import BDENTAL_4D_Utils
 from .BDENTAL_4D_Utils import *
 
+Addon_Enable(AddonName="mesh_looptools", Enable=True)
+
 addon_dir = dirname(dirname(abspath(__file__)))
-ShadersBlendFile = join(
-    addon_dir, "Resources", "BlendData", "BDENTAL_4D_BlendData.blend"
-)
+DataBlendFile = join(addon_dir, "Resources", "BlendData", "BDENTAL_4D_BlendData.blend")
 ImplantLibraryBlendFile = join(
     addon_dir, "Resources", "BlendData", "NEOBIOTECH_LIBRARY.blend"
 )
@@ -62,7 +62,7 @@ def rmtree(top):
 # class BDENTAL_4D_OT_Uninstall(bpy.types.Operator):
 #     """ Uninstall Addon """
 
-#     bl_idname = "bdental.uninstall"
+#     bl_idname = "bdental4d.uninstall"
 #     bl_label = "UNINSTALL"
 
 #     def execute(self, context):
@@ -103,7 +103,7 @@ def rmtree(top):
 class BDENTAL_4D_OT_Template(bpy.types.Operator):
     """ Open BDENTAL_4D workspace template """
 
-    bl_idname = "bdental.template"
+    bl_idname = "bdental4d.template"
     bl_label = "OPEN BDENTAL_4D WORKSPACE"
 
     SaveMainFile: BoolProperty(description="Save Main File", default=False)
@@ -769,7 +769,7 @@ def Load_3DImage_function(context, q):
 class BDENTAL_4D_OT_Volume_Render(bpy.types.Operator):
     """ Volume Render """
 
-    bl_idname = "bdental.volume_render"
+    bl_idname = "bdental4d.volume_render"
     bl_label = "LOAD SCAN"
 
     q = Queue()
@@ -779,7 +779,7 @@ class BDENTAL_4D_OT_Volume_Render(bpy.types.Operator):
         Start = Tcounter()
         print("Data Loading START...")
 
-        global ShadersBlendFile
+        global DataBlendFile
         global GpShader
 
         BDENTAL_4D_Props = context.scene.BDENTAL_4D_Props
@@ -797,7 +797,7 @@ class BDENTAL_4D_OT_Volume_Render(bpy.types.Operator):
         # PngDir = AbsPath(BDENTAL_4D_Props.PngDir)
         print("\n##########################\n")
         print("Voxel Rendering START...")
-        VolumeRender(DcmInfo, GpShader, ShadersBlendFile)
+        VolumeRender(DcmInfo, GpShader, DataBlendFile)
         scn = bpy.context.scene
         scn.render.engine = "BLENDER_EEVEE"
         BDENTAL_4D_Props.GroupNodeName = GpShader
@@ -861,7 +861,7 @@ class BDENTAL_4D_OT_Volume_Render(bpy.types.Operator):
 class BDENTAL_4D_OT_TresholdUpdate(bpy.types.Operator):
     """ Add treshold Update Handler  """
 
-    bl_idname = "bdental.tresholdupdate"
+    bl_idname = "bdental4d.tresholdupdate"
     bl_label = "Update Treshold"
 
     def execute(self, context):
@@ -884,7 +884,7 @@ class BDENTAL_4D_OT_TresholdUpdate(bpy.types.Operator):
 class BDENTAL_4D_OT_AddSlices(bpy.types.Operator):
     """ Add Volume Slices """
 
-    bl_idname = "bdental.addslices"
+    bl_idname = "bdental4d.addslices"
     bl_label = "SLICE VOLUME"
 
     def execute(self, context):
@@ -1003,7 +1003,7 @@ class BDENTAL_4D_OT_AddSlices(bpy.types.Operator):
 class BDENTAL_4D_OT_MultiTreshSegment(bpy.types.Operator):
     """ Add a mesh Segmentation using Treshold """
 
-    bl_idname = "bdental.multitresh_segment"
+    bl_idname = "bdental4d.multitresh_segment"
     bl_label = "SEGMENTATION"
 
     TimingDict = {}
@@ -1305,7 +1305,7 @@ class BDENTAL_4D_OT_MultiTreshSegment(bpy.types.Operator):
 # class BDENTAL_4D_OT_TreshSegment(bpy.types.Operator):
 #     """ Add a mesh Segmentation using Treshold """
 
-#     bl_idname = "bdental.tresh_segment"
+#     bl_idname = "bdental4d.tresh_segment"
 #     bl_label = "SEGMENTATION"
 
 #     SegmentName: StringProperty(
@@ -1581,7 +1581,7 @@ class BDENTAL_4D_OT_MultiTreshSegment(bpy.types.Operator):
 class BDENTAL_4D_OT_MultiView(bpy.types.Operator):
     """ MultiView Toggle """
 
-    bl_idname = "bdental.multiview"
+    bl_idname = "bdental4d.multiview"
     bl_label = "MULTI-VIEW"
 
     def execute(self, context):
@@ -1809,7 +1809,7 @@ class BDENTAL_4D_OT_MultiView(bpy.types.Operator):
 class BDENTAL_4D_OT_AddReferencePlanes(bpy.types.Operator):
     """ Add Reference Planes"""
 
-    bl_idname = "bdental.add_reference_planes"
+    bl_idname = "bdental4d.add_reference_planes"
     bl_label = "Add REFERENCE PLANES"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -1994,7 +1994,7 @@ class BDENTAL_4D_OT_AddReferencePlanes(bpy.types.Operator):
 
                     context.window_manager.modal_handler_add(self)
                     self.BDENTAL_4D_Props.ActiveOperator = (
-                        "bdental.add_reference_planes"
+                        "bdental4d.add_reference_planes"
                     )
                     return {"RUNNING_MODAL"}
 
@@ -2010,7 +2010,7 @@ class BDENTAL_4D_OT_AddReferencePlanes(bpy.types.Operator):
 class BDENTAL_4D_OT_AddMarkupPoint(bpy.types.Operator):
     """ Add Markup point """
 
-    bl_idname = "bdental.add_markup_point"
+    bl_idname = "bdental4d.add_markup_point"
     bl_label = "ADD MARKUP POINT"
 
     MarkupName: StringProperty(
@@ -2070,7 +2070,7 @@ class BDENTAL_4D_OT_AddMarkupPoint(bpy.types.Operator):
 class BDENTAL_4D_OT_CtVolumeOrientation(bpy.types.Operator):
     """ CtVolume Orientation according to Frankfort Plane """
 
-    bl_idname = "bdental.ctvolume_orientation"
+    bl_idname = "bdental4d.ctvolume_orientation"
     bl_label = "CTVolume Orientation"
 
     def execute(self, context):
@@ -2131,7 +2131,7 @@ class BDENTAL_4D_OT_CtVolumeOrientation(bpy.types.Operator):
 class BDENTAL_4D_OT_ResetCtVolumePosition(bpy.types.Operator):
     """ Reset the CtVolume to its original Patient Position """
 
-    bl_idname = "bdental.reset_ctvolume_position"
+    bl_idname = "bdental4d.reset_ctvolume_position"
     bl_label = "RESET CTVolume POSITION"
 
     def execute(self, context):
@@ -2172,10 +2172,168 @@ class BDENTAL_4D_OT_ResetCtVolumePosition(bpy.types.Operator):
                 return {"FINISHED"}
 
 
+class BDENTAL_4D_OT_AddTeeth(bpy.types.Operator):
+    """ Add Teeth """
+
+    bl_idname = "bdental4d.add_teeth"
+    bl_label = "ADD TEETH"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def modal(self, context, event):
+
+        ############################################
+        if not event.type in {
+            "RET",
+            "ESC",
+        }:
+            # allow navigation
+
+            return {"PASS_THROUGH"}
+
+        ###########################################
+        elif event.type == "RET":
+
+            if event.value == ("PRESS"):
+
+                Override, area3D, space3D = CtxOverride(context)
+
+                Selected_Teeth = context.selected_objects
+                bpy.ops.object.origin_set(type="ORIGIN_GEOMETRY", center="MEDIAN")
+
+                for obj in self.Coll.objects:
+                    if not obj in Selected_Teeth:
+                        bpy.data.objects.remove(obj)
+
+                # Restore scene :
+                bpy.context.space_data.shading.background_color = self.ViewPortColor
+                bpy.context.space_data.shading.color_type = self.ColorType
+                bpy.context.space_data.shading.background_type = self.SolidType
+                bpy.context.space_data.shading.type = self.BackGroundType
+
+                space3D.overlay.show_annotation = True
+                space3D.overlay.show_extras = True
+                space3D.overlay.show_floor = True
+                space3D.overlay.show_axis_x = True
+                space3D.overlay.show_axis_y = True
+
+                for obj in self.visibleObjects:
+                    obj.hide_set(False)
+
+                bpy.ops.object.select_all(Override, action="DESELECT")
+                bpy.ops.screen.screen_full_area(Override)
+
+                return {"FINISHED"}
+
+        ###########################################
+        elif event.type == ("ESC"):
+
+            if event.value == ("PRESS"):
+                Override, area3D, space3D = CtxOverride(context)
+                # Restore scene :
+                bpy.context.space_data.shading.background_color = self.ViewPortColor
+                bpy.context.space_data.shading.color_type = self.ColorType
+                bpy.context.space_data.shading.background_type = self.SolidType
+                bpy.context.space_data.shading.type = self.BackGroundType
+
+                space3D.overlay.show_annotation = True
+                space3D.overlay.show_extras = True
+                space3D.overlay.show_floor = True
+                space3D.overlay.show_axis_x = True
+                space3D.overlay.show_axis_y = True
+
+                for obj in self.visibleObjects:
+                    obj.hide_set(False)
+
+                for obj in self.Coll.objects:
+                    bpy.data.objects.remove(obj)
+
+                bpy.data.collections.remove(self.Coll)
+                bpy.ops.object.select_all(Override, action="DESELECT")
+                bpy.ops.screen.screen_full_area(Override)
+
+                message = [
+                    " Add Teeth Operation was Cancelled!",
+                ]
+
+                ShowMessageBox(message=message, icon="COLORSET_03_VEC")
+
+                return {"CANCELLED"}
+
+        return {"RUNNING_MODAL"}
+
+    def invoke(self, context, event):
+
+        if context.space_data.type == "VIEW_3D":
+
+            BDENTAL_4D_Props = bpy.context.scene.BDENTAL_4D_Props
+
+            bpy.ops.screen.screen_full_area()
+            Override, area3D, space3D = CtxOverride(context)
+            bpy.ops.object.select_all(Override, action="DESELECT")
+
+            ###########################################################
+            self.TeethLibrary = BDENTAL_4D_Props.TeethLibrary
+
+            self.visibleObjects = bpy.context.visible_objects.copy()
+
+            self.BackGroundType = space3D.shading.type
+            space3D.shading.type == "SOLID"
+
+            self.SolidType = space3D.shading.background_type
+            space3D.shading.background_type = "VIEWPORT"
+
+            self.ColorType = space3D.shading.color_type
+            space3D.shading.color_type = "MATERIAL"
+
+            self.ViewPortColor = tuple(space3D.shading.background_color)
+            space3D.shading.background_color = (0.0, 0.0, 0.0)
+
+            # Prepare scene  :
+            ##########################################################
+
+            space3D.overlay.show_outline_selected = True
+            space3D.overlay.show_object_origins = True
+            space3D.overlay.show_annotation = False
+            space3D.overlay.show_text = True
+            space3D.overlay.show_extras = False
+            space3D.overlay.show_floor = False
+            space3D.overlay.show_axis_x = False
+            space3D.overlay.show_axis_y = False
+
+            for obj in self.visibleObjects:
+                obj.hide_set(True)
+
+            filename = self.TeethLibrary
+            directory = join(DataBlendFile, "Collection")
+            bpy.ops.wm.append(directory=directory, filename=filename)
+            Coll = bpy.data.collections.get(self.TeethLibrary)
+
+            for obj in context.selected_objects:
+                MoveToCollection(obj=obj, CollName="Teeth")
+            bpy.data.collections.remove(Coll)
+
+            self.Coll = bpy.data.collections.get("Teeth")
+
+            bpy.ops.object.select_all(Override, action="DESELECT")
+
+            context.window_manager.modal_handler_add(self)
+
+            return {"RUNNING_MODAL"}
+
+        else:
+
+            message = [
+                "Active space must be a View3d",
+            ]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+
+            return {"CANCELLED"}
+
+
 class BDENTAL_4D_OT_AddSleeve(bpy.types.Operator):
     """ Add Sleeve """
 
-    bl_idname = "bdental.add_sleeve"
+    bl_idname = "bdental4d.add_sleeve"
     bl_label = "ADD SLEEVE"
 
     OrientationTypes = ["AXIAL", "SAGITAL/CORONAL"]
@@ -2231,6 +2389,9 @@ class BDENTAL_4D_OT_AddSleeve(bpy.types.Operator):
         bpy.ops.object.parent_set(type="OBJECT", keep_transform=True)
         Pin.select_set(False)
 
+        for obj in [Pin, Sleeve]:
+            MoveToCollection(obj, "GUIDE Components")
+
         return {"FINISHED"}
 
     def invoke(self, context, event):
@@ -2249,7 +2410,7 @@ class BDENTAL_4D_OT_AddSleeve(bpy.types.Operator):
 class BDENTAL_4D_OT_AddImplant(bpy.types.Operator):
     """ Add Implant """
 
-    bl_idname = "bdental.add_implant"
+    bl_idname = "bdental4d.add_implant"
     bl_label = "ADD IMPLANT"
 
     OrientationTypes = ["AXIAL", "SAGITAL/CORONAL"]
@@ -2258,7 +2419,7 @@ class BDENTAL_4D_OT_AddImplant(bpy.types.Operator):
         item = (str(OrientationTypes[i]), str(OrientationTypes[i]), str(""), int(i))
         items.append(item)
 
-    Orientation: EnumProperty(items=items, description="Orientation", default="AXIAL")
+    # Orientation: EnumProperty(items=items, description="Orientation", default="AXIAL")
 
     D = ["3.5", "4.0", "4.5"]
     items = []
@@ -2276,24 +2437,390 @@ class BDENTAL_4D_OT_AddImplant(bpy.types.Operator):
 
     Implant_Lenght: EnumProperty(items=items, description="LENGHT", default="10")
 
-    def execute(self, context):
-        cursor = context.scene.cursor
+    def AddImplant(self, context):
         filename = f"IMPLANT_{self.Implant_Diameter}_{self.Implant_Lenght}"
         directory = join(ImplantLibraryBlendFile, "Object")
         bpy.ops.wm.append(directory=directory, filename=filename)
-        Implant = context.selected_objects[0]
-        context.view_layer.objects.active = Implant
-        Implant.matrix_world = cursor.matrix
+        self.Implant = context.selected_objects[0]
+        context.view_layer.objects.active = self.Implant
 
-        if self.Orientation == "SAGITAL/CORONAL":
-            Implant.rotation_euler.rotate_axis("X", radians(-90))
+    def execute(self, context):
+
+        self.AddImplant(context)
+        self.Implant.matrix_world = self.matrix
+        MoveToCollection(self.Implant, "GUIDE Components")
+
+        if self.mode == "Pointer":
+            self.Pointer.select_set(True)
+            context.view_layer.objects.active = self.Pointer
+            bpy.ops.object.parent_set(type="OBJECT", keep_transform=True)
+            self.Implant.select_set(False)
 
         return {"FINISHED"}
 
     def invoke(self, context, event):
 
+        if context.object:
+
+            if context.object.select_get() and "SLICES_POINTER" in context.object.name:
+                self.matrix = context.object.matrix_world
+                self.mode = "Pointer"
+                self.Pointer = context.object
+
+            else:
+                self.matrix = context.scene.cursor.matrix
+                self.mode = "Cursor"
+        else:
+            self.matrix = context.scene.cursor.matrix
+            self.mode = "Cursor"
         wm = context.window_manager
         return wm.invoke_props_dialog(self)
+
+
+##################################################################
+class BDENTAL_4D_OT_AddSplint(bpy.types.Operator):
+    """ Add Splint """
+
+    bl_idname = "bdental4d.add_splint"
+    bl_label = "Splint"
+    bl_options = {"REGISTER", "UNDO"}
+
+    thikness: FloatProperty(
+        description="SPLINT thikness", default=2, step=1, precision=2
+    )
+
+    def execute(self, context):
+
+        Splint = Metaball_Splint(self.BaseMesh, self.thikness)
+
+        return {"FINISHED"}
+
+    def invoke(self, context, event):
+
+        if not context.object:
+            message = ["Please select a base mesh!"]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+
+            return {"CANCELLED"}
+
+        if not context.object.select_get() or context.object.type != "MESH":
+            message = ["Please select a base mesh!"]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+
+            return {"CANCELLED"}
+
+        else:
+            self.BaseMesh = context.object
+            wm = context.window_manager
+            return wm.invoke_props_dialog(self)
+
+
+class BDENTAL_4D_OT_Survey(bpy.types.Operator):
+    " Survey the model from view top"
+
+    bl_idname = "bdental4d.survey"
+    bl_label = "Survey Model"
+
+    SurveyColor: FloatVectorProperty(
+        name="Survey Color",
+        description="Survey Color",
+        default=[0.2, 0.12, 0.17, 1.0],
+        soft_min=0.0,
+        soft_max=1.0,
+        size=4,
+        subtype="COLOR",
+    )
+
+    def execute(self, context):
+        BDENTAL_4D_Props = bpy.context.scene.BDENTAL_4D_Props
+        bpy.ops.object.mode_set(mode="OBJECT")
+        Old_Survey_mat = bpy.data.materials.get("BDENTAL4D_survey_mat")
+        if Old_Survey_mat:
+            OldmatSlotsIds = [
+                i
+                for i in range(len(self.Model.material_slots))
+                if self.Model.material_slots[i].material == Old_Survey_mat
+            ]
+            if OldmatSlotsIds:
+                for idx in OldmatSlotsIds:
+                    self.Model.active_material_index = idx
+                    bpy.ops.object.material_slot_remove()
+
+        Override, area3D, space3D = CtxOverride(context)
+        view_mtx = space3D.region_3d.view_matrix.copy()
+        if not self.Model.data.materials:
+            ModelMat = bpy.data.materials.get(
+                "BDENTAL4D_Neutral_mat"
+            ) or bpy.data.materials.new("BDENTAL4D_Neutral_mat")
+            ModelMat.diffuse_color = (0.8, 0.8, 0.8, 1.0)
+            self.Model.active_material = ModelMat
+
+        Survey_mat = bpy.data.materials.get(
+            "BDENTAL4D_survey_mat"
+        ) or bpy.data.materials.new("BDENTAL4D_survey_mat")
+        Survey_mat.diffuse_color = self.SurveyColor
+        self.Model.data.materials.append(Survey_mat)
+        self.Model.active_material_index = len(self.Model.material_slots) - 1
+
+        # #############################____Surveying____###############################
+        survey_faces_index_list = []
+
+        obj = self.Model
+        View_Local_Z = obj.matrix_world.inverted().to_3x3() @ (
+            space3D.region_3d.view_rotation @ Vector((0, 0, 1))
+        )
+
+        survey_faces_Idx = [
+            f.index for f in obj.data.polygons if f.normal.dot(View_Local_Z) < -0.000001
+        ]
+
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.context.tool_settings.mesh_select_mode = (False, False, True)
+        bpy.ops.mesh.select_all(action="DESELECT")
+
+        bpy.ops.object.mode_set(mode="OBJECT")
+
+        for i in survey_faces_Idx:
+            f = obj.data.polygons[i]
+            f.select = True
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.context.tool_settings.mesh_select_mode = (True, False, False)
+        Survey_Vg = obj.vertex_groups.get(
+            "BDENTAL4D_survey_vg"
+        ) or obj.vertex_groups.new(name="BDENTAL4D_survey_vg")
+        # obj.vertex_groups.active_index = Survey_Vg.index
+        bpy.ops.object.vertex_group_assign()
+        bpy.ops.object.material_slot_assign()
+        bpy.ops.object.mode_set(mode="OBJECT")
+        bpy.ops.object.select_all(action="DESELECT")
+        obj.select_set(True)
+
+        # Store Survey direction :
+        SurveyInfo_Dict = eval(BDENTAL_4D_Props.SurveyInfo)
+        SurveyInfo_Dict[obj.as_pointer()] = (View_Local_Z, Survey_mat)
+        BDENTAL_4D_Props.SurveyInfo = str(SurveyInfo_Dict)
+
+        return {"FINISHED"}
+
+    def invoke(self, context, event):
+
+        if not context.active_object:
+            message = ["Please select Model to survey!"]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+
+            return {"CANCELLED"}
+
+        if (
+            not context.active_object.select_get()
+            or context.active_object.type != "MESH"
+        ):
+            message = ["Please select Model to survey!"]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+
+            return {"CANCELLED"}
+
+        else:
+            self.Model = context.active_object
+            wm = context.window_manager
+            return wm.invoke_props_dialog(self)
+
+
+class BDENTAL_4D_OT_ModelBase(bpy.types.Operator):
+    """Make a model base from top user view prspective"""
+
+    bl_idname = "bdental4d.model_base"
+    bl_label = "Model Base"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        if not context.active_object:
+            message = ["Please select target mesh !"]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+
+            return {"CANCELLED"}
+
+        if (
+            not context.active_object.select_get()
+            or context.active_object.type != "MESH"
+        ):
+            message = ["Please select target mesh !"]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+
+            return {"CANCELLED"}
+
+        else:
+            # Check base boarder :
+            TargetMesh = context.active_object
+            bpy.ops.object.mode_set(mode="EDIT")
+            bpy.context.tool_settings.mesh_select_mode = (True, False, False)
+            bpy.ops.mesh.select_all(action="DESELECT")
+            bpy.ops.mesh.select_non_manifold()
+            bpy.ops.object.mode_set(mode="OBJECT")
+            NonManifoldVerts = [v for v in TargetMesh.data.vertices if v.select]
+
+            if not NonManifoldVerts:
+                message = [
+                    "The target mesh is closed !",
+                    "Can't make base from Closed mesh.",
+                ]
+                ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+
+                return {"CANCELLED"}
+
+            else:
+                Override, area3D, space3D = CtxOverride(context)
+                BaseHeight = context.scene.BDENTAL_4D_Props.BaseHeight
+                # show_box = bpy.context.scene.BDENTAL_4D_Props.show_box
+
+                obj = TargetMesh
+
+                ####### Flip Model_Base to top view #######
+                # mtx90_X = Euler((radians(90), 0, 0)).to_matrix().to_4x4()
+                view_rotation = space3D.region_3d.view_rotation
+                view3d_rot_matrix = view_rotation.to_matrix().to_4x4()
+
+                flip_matrix = view3d_rot_matrix.inverted()
+                unflip_matrix = view3d_rot_matrix
+
+                ####### Duplicate Target Mesh #######
+                bpy.ops.object.select_all(action="DESELECT")
+                TargetMesh.select_set(True)
+                bpy.context.view_layer.objects.active = TargetMesh
+                bpy.ops.object.duplicate_move()
+
+                ModelBase = context.object
+                ModelBase.name = f"{TargetMesh.name} (BASE MODEL)"
+                ModelBase.data.name = ModelBase.name
+                obj = ModelBase
+                # Relax border loop :
+                bpy.ops.object.mode_set(mode="EDIT")
+                bpy.ops.mesh.select_all(action="DESELECT")
+                bpy.ops.mesh.select_non_manifold()
+                bpy.ops.mesh.remove_doubles(threshold=0.1)
+                bpy.ops.mesh.looptools_relax(
+                    input="selected",
+                    interpolation="cubic",
+                    iterations="3",
+                    regular=True,
+                )
+                # Flip Model :
+                ModelBase.matrix_world = flip_matrix @ ModelBase.matrix_world
+
+                # Make some calcul of average z_cordinate of border vertices :
+
+                bpy.ops.object.mode_set(mode="OBJECT")
+
+                obj_mx = obj.matrix_world.copy()
+                verts = obj.data.vertices
+                global_z_cords = [(obj_mx @ v.co)[2] for v in verts]
+
+                min_z = min(global_z_cords)
+
+                # Border_2 = Extrude 1st border loop no translation :
+                bpy.ops.object.mode_set(mode="EDIT")
+                bpy.ops.mesh.extrude_region_move()
+
+                # change Border2 vertices zco to min_z - base_height  :
+
+                bpy.ops.object.mode_set(mode="OBJECT")
+                selected_verts = [v for v in verts if v.select == True]
+
+                for v in selected_verts:
+                    global_v_co = obj_mx @ v.co
+                    v.co = obj_mx.inverted() @ Vector(
+                        (global_v_co[0], global_v_co[1], min_z - BaseHeight)
+                    )
+
+                # fill base :
+                bpy.ops.object.mode_set(mode="EDIT")
+                bpy.ops.mesh.fill(use_beauty=False)
+                bpy.ops.object.mode_set(mode="OBJECT")
+
+                # Model_base matrix_world reset :
+
+                obj.matrix_world = unflip_matrix @ obj.matrix_world
+
+                message = ["Model Base created successfully"]
+                ShowMessageBox(message=message, icon="COLORSET_03_VEC")
+
+                return {"FINISHED"}
+
+
+class BDENTAL_4D_OT_BlockModel(bpy.types.Operator):
+    " Blockout Model (Remove Undercuts)"
+
+    bl_idname = "bdental4d.block_model"
+    bl_label = "BLOCK Model"
+
+    def execute(self, context):
+
+        if not context.active_object:
+            message = ["Please select Model to Blockout !"]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+
+            return {"CANCELLED"}
+
+        if (
+            not context.active_object.select_get()
+            or context.active_object.type != "MESH"
+        ):
+            message = ["Please select Model to Blockout !"]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+
+            return {"CANCELLED"}
+
+        else:
+            Model = context.active_object
+            Pointer = Model.as_pointer()
+            BDENTAL_4D_Props = bpy.context.scene.BDENTAL_4D_Props
+            SurveyInfo_Dict = eval(BDENTAL_4D_Props.SurveyInfo)
+            if not Pointer in SurveyInfo_Dict.keys():
+                message = ["Please Survey Model before Blockout !"]
+                ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+
+                return {"CANCELLED"}
+            else:
+                View_Local_Z, Survey_mat = SurveyInfo_Dict[Pointer]
+                ExtrudeVector = -(20 * View_Local_Z)
+
+                # duplicate Model :
+                bpy.ops.object.select_all(action="DESELECT")
+                Model.select_set(True)
+                bpy.context.view_layer.objects.active = Model
+                bpy.ops.object.duplicate_move()
+                BlockedModel = bpy.context.view_layer.objects.active
+                BlockedModel.name = f"{Model.name}(BLOCKED)"
+                BlockedModel.data.name = BlockedModel.name
+                bpy.ops.object.select_all(action="DESELECT")
+                BlockedModel.select_set(True)
+                bpy.context.view_layer.objects.active = BlockedModel
+
+                for _ in BlockedModel.material_slots:
+                    bpy.ops.object.material_slot_remove()
+
+                BlockedModel.active_material = Survey_mat
+                bpy.ops.object.mode_set(mode="EDIT")
+                Survey_Vg = [
+                    Vg
+                    for Vg in BlockedModel.vertex_groups
+                    if Vg.name == "BDENTAL4D_survey_vg"
+                ][0]
+                BlockedModel.vertex_groups.active_index = Survey_Vg.index
+                bpy.ops.object.vertex_group_select()
+                bpy.ops.mesh.extrude_region_move()
+                bpy.ops.transform.translate(value=ExtrudeVector)
+
+                bpy.ops.object.mode_set(mode="OBJECT")
+                BlockedModel.data.remesh_mode = "VOXEL"
+                BlockedModel.data.remesh_voxel_size = 0.2
+                BlockedModel.data.use_remesh_fix_poles = True
+                BlockedModel.data.use_remesh_smooth_normals = True
+                BlockedModel.data.use_remesh_preserve_volume = True
+
+                bpy.ops.object.voxel_remesh()
+
+                return {"FINISHED"}
 
 
 #################################################################################################
@@ -2312,8 +2839,13 @@ classes = [
     BDENTAL_4D_OT_AddReferencePlanes,
     BDENTAL_4D_OT_CtVolumeOrientation,
     BDENTAL_4D_OT_AddMarkupPoint,
+    BDENTAL_4D_OT_AddTeeth,
     BDENTAL_4D_OT_AddSleeve,
     BDENTAL_4D_OT_AddImplant,
+    BDENTAL_4D_OT_AddSplint,
+    BDENTAL_4D_OT_Survey,
+    BDENTAL_4D_OT_BlockModel,
+    BDENTAL_4D_OT_ModelBase,
 ]
 
 

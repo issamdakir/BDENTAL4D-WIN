@@ -16,7 +16,7 @@ Addon_Enable(AddonName="mesh_looptools", Enable=True)
 class BDENTAL_4D_OT_JoinObjects(bpy.types.Operator):
     " Join Objects "
 
-    bl_idname = "bdental.join_objects"
+    bl_idname = "bdental4d.join_objects"
     bl_label = "JOIN :"
 
     def execute(self, context):
@@ -49,7 +49,7 @@ class BDENTAL_4D_OT_JoinObjects(bpy.types.Operator):
 class BDENTAL_4D_OT_SeparateObjects(bpy.types.Operator):
     " Separate Objects "
 
-    bl_idname = "bdental.separate_objects"
+    bl_idname = "bdental4d.separate_objects"
     bl_label = "SEPARATE :"
 
     Separate_Modes_List = ["Selection", "Loose Parts", ""]
@@ -121,7 +121,7 @@ class BDENTAL_4D_OT_SeparateObjects(bpy.types.Operator):
 class BDENTAL_4D_OT_Parent(bpy.types.Operator):
     " Parent Object "
 
-    bl_idname = "bdental.parent_object"
+    bl_idname = "bdental4d.parent_object"
     bl_label = "PARENT"
 
     def execute(self, context):
@@ -161,7 +161,7 @@ class BDENTAL_4D_OT_Parent(bpy.types.Operator):
 class BDENTAL_4D_OT_Unparent(bpy.types.Operator):
     " Un-Parent objects"
 
-    bl_idname = "bdental.unparent_objects"
+    bl_idname = "bdental4d.unparent_objects"
     bl_label = "Un-Parent"
 
     def execute(self, context):
@@ -191,7 +191,7 @@ class BDENTAL_4D_OT_Unparent(bpy.types.Operator):
 class BDENTAL_4D_OT_align_to_front(bpy.types.Operator):
     """Align Model To Front view"""
 
-    bl_idname = "bdental.align_to_front"
+    bl_idname = "bdental4d.align_to_front"
     bl_label = "Align to Front"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -249,7 +249,7 @@ class BDENTAL_4D_OT_align_to_front(bpy.types.Operator):
 class BDENTAL_4D_OT_to_center(bpy.types.Operator):
     " Center Model to world origin "
 
-    bl_idname = "bdental.to_center"
+    bl_idname = "bdental4d.to_center"
     bl_label = "TO CENTER"
 
     yellow_stone = [1.0, 0.36, 0.06, 1.0]
@@ -346,7 +346,7 @@ class BDENTAL_4D_OT_to_center(bpy.types.Operator):
 class BDENTAL_4D_OT_center_cursor(bpy.types.Operator):
     """Cursor to World Origin """
 
-    bl_idname = "bdental.center_cursor"
+    bl_idname = "bdental4d.center_cursor"
     bl_label = "Center Cursor"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -362,7 +362,7 @@ class BDENTAL_4D_OT_center_cursor(bpy.types.Operator):
 class BDENTAL_4D_OT_OcclusalPlane(bpy.types.Operator):
     """ Add Occlusal Plane"""
 
-    bl_idname = "bdental.occlusalplane"
+    bl_idname = "bdental4d.occlusalplane"
     bl_label = "OCCLUSAL PLANE"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -643,7 +643,7 @@ class BDENTAL_4D_OT_OcclusalPlane(bpy.types.Operator):
 class BDENTAL_4D_OT_OcclusalPlaneInfo(bpy.types.Operator):
     """ Add Align Refference points """
 
-    bl_idname = "bdental.occlusalplaneinfo"
+    bl_idname = "bdental4d.occlusalplaneinfo"
     bl_label = "INFO"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -673,7 +673,7 @@ class BDENTAL_4D_OT_OcclusalPlaneInfo(bpy.types.Operator):
 class BDENTAL_4D_OT_decimate(bpy.types.Operator):
     """ Decimate to ratio """
 
-    bl_idname = "bdental.decimate"
+    bl_idname = "bdental4d.decimate"
     bl_label = "Decimate Model"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -711,7 +711,7 @@ class BDENTAL_4D_OT_decimate(bpy.types.Operator):
 class BDENTAL_4D_OT_fill(bpy.types.Operator):
     """fill edge or face """
 
-    bl_idname = "bdental.fill"
+    bl_idname = "bdental4d.fill"
     bl_label = "FILL"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -772,7 +772,7 @@ class BDENTAL_4D_OT_fill(bpy.types.Operator):
 class BDENTAL_4D_OT_retopo_smooth(bpy.types.Operator):
     """Retopo sculpt for filled holes"""
 
-    bl_idname = "bdental.retopo_smooth"
+    bl_idname = "bdental4d.retopo_smooth"
     bl_label = "Retopo Smooth"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -826,7 +826,7 @@ class BDENTAL_4D_OT_retopo_smooth(bpy.types.Operator):
 class BDENTAL_4D_OT_clean_mesh(bpy.types.Operator):
     """ Fill small and medium holes and remove small parts"""
 
-    bl_idname = "bdental.clean_mesh"
+    bl_idname = "bdental4d.clean_mesh"
     bl_label = "CLEAN MESH"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -910,7 +910,7 @@ class BDENTAL_4D_OT_clean_mesh(bpy.types.Operator):
 class BDENTAL_4D_OT_VoxelRemesh(bpy.types.Operator):
     """ Voxel Remesh Operator """
 
-    bl_idname = "bdental.voxelremesh"
+    bl_idname = "bdental4d.voxelremesh"
     bl_label = "REMESH"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -974,7 +974,7 @@ class BDENTAL_4D_OT_VoxelRemesh(bpy.types.Operator):
 class BDENTAL_4D_OT_CurveCutterAdd(bpy.types.Operator):
     """ description of this Operator """
 
-    bl_idname = "bdental.curvecutteradd"
+    bl_idname = "bdental4d.curvecutteradd"
     bl_label = "CURVE CUTTER ADD"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -1110,7 +1110,7 @@ class BDENTAL_4D_OT_CurveCutterAdd(bpy.types.Operator):
 class BDENTAL_4D_OT_CurveCutterCut(bpy.types.Operator):
     " Performe Curve Cutting Operation"
 
-    bl_idname = "bdental.curvecuttercut"
+    bl_idname = "bdental4d.curvecuttercut"
     bl_label = "CURVE CUTTER CUT"
 
     def execute(self, context):
@@ -1267,7 +1267,7 @@ class BDENTAL_4D_OT_CurveCutterCut(bpy.types.Operator):
 class BDENTAL_4D_OT_CurveCutterAdd2(bpy.types.Operator):
     """ description of this Operator """
 
-    bl_idname = "bdental.curvecutteradd2"
+    bl_idname = "bdental4d.curvecutteradd2"
     bl_label = "CURVE CUTTER ADD"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -1399,10 +1399,137 @@ class BDENTAL_4D_OT_CurveCutterAdd2(bpy.types.Operator):
                 return {"CANCELLED"}
 
 
+##################################################################
+
+
+class BDENTAL_4D_OT_AddTube(bpy.types.Operator):
+    """ Add Curve Tube """
+
+    bl_idname = "bdental4d.add_tube"
+    bl_label = "ADD TUBE"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def modal(self, context, event):
+
+        if not event.type in {
+            "DEL",
+            "LEFTMOUSE",
+            "RET",
+            "ESC",
+        }:
+            # allow navigation
+
+            return {"PASS_THROUGH"}
+
+        elif event.type == ("DEL"):
+            if event.value == ("PRESS"):
+
+                DeleteTubePoint(self.TubeObject)
+
+            return {"RUNNING_MODAL"}
+
+        elif event.type == ("LEFTMOUSE"):
+
+            if event.value == ("PRESS"):
+
+                return {"PASS_THROUGH"}
+
+            if event.value == ("RELEASE"):
+
+                ExtrudeTube(self.TubeObject)
+
+        elif event.type == "RET":
+
+            if event.value == ("PRESS"):
+                bpy.ops.object.mode_set(mode="OBJECT")
+                self.TubeObject.select_set(True)
+                bpy.context.view_layer.objects.active = self.TubeObject
+
+                if self.TubeCloseMode:
+                    bpy.ops.object.mode_set(mode="EDIT")
+                    bpy.ops.curve.cyclic_toggle()
+                    bpy.ops.object.mode_set(mode="OBJECT")
+
+                bpy.ops.wm.tool_set_by_id(name="builtin.select")
+                bpy.context.scene.tool_settings.use_snap = False
+                bpy.context.space_data.overlay.show_outline_selected = True
+
+                return {"FINISHED"}
+
+        elif event.type == ("ESC"):
+
+            if event.value == ("PRESS"):
+
+                bpy.ops.object.mode_set(mode="OBJECT")
+                Tube = bpy.data.objects.get(self.TubeName)
+                if Tube:
+                    bpy.data.objects.remove(Tube)
+
+                bpy.ops.object.select_all(action="DESELECT")
+                self.TubeTarget.select_set(True)
+                bpy.context.view_layer.objects.active = self.TubeTarget
+
+                bpy.ops.wm.tool_set_by_id(name="builtin.select")
+                bpy.context.scene.tool_settings.use_snap = False
+                bpy.context.space_data.overlay.show_outline_selected = True
+
+                return {"CANCELLED"}
+
+        return {"RUNNING_MODAL"}
+
+    def invoke(self, context, event):
+
+        self.TubeTarget = context.active_object
+        if not self.TubeTarget:
+            message = [" Please select the target object !"]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+
+            return {"CANCELLED"}
+
+        else:
+            if not self.TubeTarget.select_get():
+
+                message = [" Please select the target object !"]
+                ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+
+                return {"CANCELLED"}
+
+            else:
+
+                if context.space_data.type == "VIEW_3D":
+
+                    BDENTAL_4D_Props = bpy.context.scene.BDENTAL_4D_Props
+
+                    bpy.ops.object.mode_set(mode="OBJECT")
+                    bpy.ops.object.select_all(action="DESELECT")
+
+                    self.TubeObject = AddTube(context, self.TubeTarget)
+                    self.TubeName = self.TubeObject.name
+
+                    if BDENTAL_4D_Props.TubeCloseMode == "Close Tube":
+                        self.TubeCloseMode = True
+
+                    if BDENTAL_4D_Props.TubeCloseMode == "Open Tube":
+                        self.TubeCloseMode = False
+                        self.TubeObject.data.use_fill_caps = True
+
+                    context.window_manager.modal_handler_add(self)
+
+                    return {"RUNNING_MODAL"}
+
+                else:
+
+                    message = ["Active space must be a View3d"]
+                    ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+
+                    return {"CANCELLED"}
+
+
+################################################################################
 class BDENTAL_4D_OT_CurveCutter2_ShortPath(bpy.types.Operator):
     " Shortpath Curve Cutting tool"
 
-    bl_idname = "bdental.curvecutter2_shortpath"
+    bl_idname = "bdental4d.curvecutter2_shortpath"
     bl_label = "ShortPath"
 
     def execute(self, context):
@@ -1550,7 +1677,7 @@ class BDENTAL_4D_OT_CurveCutter2_ShortPath(bpy.types.Operator):
 class BDENTAL_4D_OT_square_cut(bpy.types.Operator):
     """Square Cutting Tool add"""
 
-    bl_idname = "bdental.square_cut"
+    bl_idname = "bdental4d.square_cut"
     bl_label = "Square Cut"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -1627,7 +1754,7 @@ class BDENTAL_4D_OT_square_cut(bpy.types.Operator):
 class BDENTAL_4D_OT_square_cut_confirm(bpy.types.Operator):
     """confirm Square Cut operation"""
 
-    bl_idname = "bdental.square_cut_confirm"
+    bl_idname = "bdental4d.square_cut_confirm"
     bl_label = "Tirm"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -1711,7 +1838,7 @@ class BDENTAL_4D_OT_square_cut_confirm(bpy.types.Operator):
 class BDENTAL_4D_OT_square_cut_exit(bpy.types.Operator):
     """Square Cutting Tool Exit"""
 
-    bl_idname = "bdental.square_cut_exit"
+    bl_idname = "bdental4d.square_cut_exit"
     bl_label = "Exit"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -1746,7 +1873,7 @@ class BDENTAL_4D_OT_square_cut_exit(bpy.types.Operator):
 class BDENTAL_4D_OT_PaintArea(bpy.types.Operator):
     """ Vertex paint area context toggle """
 
-    bl_idname = "bdental.paintarea_toggle"
+    bl_idname = "bdental4d.paintarea_toggle"
     bl_label = "PAINT AREA"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -1803,7 +1930,7 @@ class BDENTAL_4D_OT_PaintArea(bpy.types.Operator):
 class BDENTAL_4D_OT_PaintAreaPlus(bpy.types.Operator):
     """ Vertex paint area Paint Plus toggle """
 
-    bl_idname = "bdental.paintarea_plus"
+    bl_idname = "bdental4d.paintarea_plus"
     bl_label = "PLUS"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -1842,7 +1969,7 @@ class BDENTAL_4D_OT_PaintAreaPlus(bpy.types.Operator):
 class BDENTAL_4D_OT_PaintAreaMinus(bpy.types.Operator):
     """ Vertex paint area Paint Minus toggle """
 
-    bl_idname = "bdental.paintarea_minus"
+    bl_idname = "bdental4d.paintarea_minus"
     bl_label = "MINUS"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -1881,7 +2008,7 @@ class BDENTAL_4D_OT_PaintAreaMinus(bpy.types.Operator):
 class BDENTAL_4D_OT_PaintCut(bpy.types.Operator):
     """ Vertex paint Cut """
 
-    bl_idname = "bdental.paint_cut"
+    bl_idname = "bdental4d.paint_cut"
     bl_label = "CUT"
 
     Cut_Modes_List = ["Cut", "Make Copy (Shell)", "Remove Painted", "Keep Painted"]
@@ -2057,6 +2184,7 @@ classes = [
     BDENTAL_4D_OT_PaintAreaPlus,
     BDENTAL_4D_OT_PaintAreaMinus,
     BDENTAL_4D_OT_PaintCut,
+    BDENTAL_4D_OT_AddTube,
 ]
 
 
