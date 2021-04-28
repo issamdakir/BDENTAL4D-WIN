@@ -428,6 +428,80 @@ class BDENTAL_4D_Props(bpy.types.PropertyGroup):
         description="Models Survey Local Z",
     )
 
+    #############################################################################################
+    # BDENTAL_4D Align Properties :
+    #############################################################################################
+    IcpVidDict: StringProperty(
+        name="IcpVidDict",
+        default="None",
+        description="ICP Vertices Pairs str(Dict)",
+    )
+
+    #######################
+    AlignModalState: BoolProperty(description="Align Modal state ", default=False)
+
+    #############################################################################################
+    # JTrack Props Properties :
+    #############################################################################################
+    JTrack_UserProjectDir: StringProperty(
+        name="",
+        default="",
+        description="Location of BDJawTracker project Directory",
+        subtype="DIR_PATH",
+    )
+
+    CalibImages: StringProperty(
+        name="Calibration Images path",
+        default="",
+        description="Location of calibration Images directory ",
+        subtype="DIR_PATH",
+    )
+
+    TrackFile: StringProperty(
+        name="Video Track File",
+        default="",
+        description="Location of tracking  Rec video file ",
+        subtype="FILE_PATH",
+    )
+
+    TrackedData: StringProperty(
+        name="",
+        default="",
+        description="Location tracked data file (.txt)",
+        subtype="FILE_PATH",
+    )
+
+    UserSquareLength: FloatProperty(
+        description="Square length in meters", default=0.0244, step=1, precision=4
+    )
+    UserMarkerLength: FloatProperty(
+        description="Marker length in meters", default=0.0123, step=1, precision=4
+    )
+
+    #####################
+
+    # Tracking_Types = ["Precision", "Precision resized(1/2)", "Fast", "Fast resized(1/2)"]
+    Tracking_Types = ["Precision", "Fast"]
+    items = []
+    for i in range(len(Tracking_Types)):
+        item = (str(Tracking_Types[i]), str(Tracking_Types[i]), str(""), int(i))
+        items.append(item)
+
+    TrackingType: EnumProperty(
+        items=items, description="Tracking method", default="Fast"
+    )
+    BakeLowPlane: BoolProperty(
+        name="Enable or Disable Low occlusal plane baking",
+        description="Lower occlusal plane baking",
+        default=False,
+    )
+
+    BakeUpPlane: BoolProperty(
+        name="Enable or Disable Up occlusal plane baking",
+        description="Upper occlusal plane baking",
+        default=False,
+    )
+
 
 #################################################################################################
 # Registration :

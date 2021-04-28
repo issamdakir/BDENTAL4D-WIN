@@ -24,7 +24,7 @@ Wmin, Wmax = -400, 3000
 
 
 class BDENTAL_4D_PT_MainPanel(bpy.types.Panel):
-    """ BDENTAL_4D Main Panel"""
+    """Main Panel"""
 
     bl_idname = "BDENTAL_4D_PT_MainPanel"
     bl_space_type = "VIEW_3D"
@@ -48,16 +48,17 @@ class BDENTAL_4D_PT_MainPanel(bpy.types.Panel):
         row = box.row()
         row.alignment = "CENTER"
         row.operator("bdental4d.template", text="BDENTAL_4D THEME")
+        row.operator("bdental4d.open_manual")
 
 
 class BDENTAL_4D_PT_ScanPanel(bpy.types.Panel):
-    """ BDENTAL_4D Scan Panel"""
+    """Scan Panel"""
 
     bl_idname = "BDENTAL_4D_PT_ScanPanel"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"  # blender 2.7 and lower = TOOLS
     bl_category = "BDENTAL-4D"
-    bl_label = "SCAN VIEWER"
+    bl_label = "SCAN"
     bl_options = {"DEFAULT_CLOSED"}
 
     def draw(self, context):
@@ -164,47 +165,14 @@ class BDENTAL_4D_PT_ScanPanel(bpy.types.Panel):
                 col.operator("bdental4d.multiview")
 
 
-class BDENTAL_4D_PT_Measurements(bpy.types.Panel):
-    """ BDENTAL_4D_FULL Scan Panel"""
-
-    bl_idname = "BDENTAL_4D_PT_Measurements"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"  # blender 2.7 and lower = TOOLS
-    bl_category = "BDENTAL-4D"
-    bl_label = "MEASUREMENTS"
-    bl_options = {"DEFAULT_CLOSED"}
-
-    def draw(self, context):
-        BDENTAL_4D_Props = context.scene.BDENTAL_4D_Props
-        layout = self.layout
-        Box = layout.box()
-        row = Box.row()
-        row.operator("bdental4d.add_markup_point")
-        row.operator("bdental4d.add_reference_planes")
-        if BDENTAL_4D_Props.ActiveOperator == "bdental4d.add_reference_planes":
-            Box = layout.box()
-            Message = [
-                "Click to place cursor, <ENTER> to Add point",
-                "Please Add Reference points in this order :",
-                "- Nasion , Right Orbital, Right Porion, Left Orbital, Left Porion",
-                "Click <ENTER> to Add Reference Planes",
-            ]
-            for line in Message:
-                row = Box.row()
-                row.alert = True
-                row.label(text=line)
-        row = Box.row()
-        row.operator("bdental4d.ctvolume_orientation")
-
-
 class BDENTAL_4D_PT_MeshesTools_Panel(bpy.types.Panel):
-    """ BDENTAL_4D Meshes Tools Panel"""
+    """ Model/Mesh Tools Panel"""
 
     bl_idname = "BDENTAL_4D_PT_MeshesTools_Panel"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"  # blender 2.7 and lower = TOOLS
     bl_category = "BDENTAL-4D"
-    bl_label = "MESH TOOLS"
+    bl_label = "MODEL/MESH TOOLS"
     bl_options = {"DEFAULT_CLOSED"}
 
     def draw(self, context):
@@ -317,13 +285,13 @@ class BDENTAL_4D_PT_MeshesTools_Panel(bpy.types.Panel):
 
 
 class BDENTAL_4D_PT_Guide(bpy.types.Panel):
-    """ BDENTAL_4D Guide Panel"""
+    """ Guide Panel"""
 
     bl_idname = "BDENTAL_4D_PT_Guide"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"  # blender 2.7 and lower = TOOLS
     bl_category = "BDENTAL-4D"
-    bl_label = "Guide"
+    bl_label = "SURGICAL GUIDE"
     bl_options = {"DEFAULT_CLOSED"}
 
     def draw(self, context):
@@ -363,16 +331,327 @@ class BDENTAL_4D_PT_Guide(bpy.types.Panel):
         row.operator("bdental4d.add_splint")
 
 
-#################################################################################################
+####################################################################
+class BDENTAL_4D_PT_Align(bpy.types.Panel):
+    """ALIGN Panel"""
+
+    bl_idname = "BDENTAL_4D_PT_Main"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"  # blender 2.7 and lower = TOOLS
+    bl_category = "BDENTAL-4D"
+    bl_label = "ALIGN"
+    bl_options = {"DEFAULT_CLOSED"}
+
+    def draw(self, context):
+        BDENTAL_4D_Props = context.scene.BDENTAL_4D_Props
+        AlignModalState = BDENTAL_4D_Props.AlignModalState
+        layout = self.layout
+        split = layout.split(factor=2 / 3, align=False)
+        col = split.column()
+        row = col.row()
+        row.operator("bdental_align.alignpoints", text="ALIGN")
+        col = split.column()
+        row = col.row()
+        row.alert = True
+        row.operator("bdental_align.alignpointsinfo", text="INFO", icon="INFO")
+
+        Condition_1 = len(bpy.context.selected_objects) != 2
+        Condition_2 = bpy.context.selected_objects and not bpy.context.active_object
+        Condition_3 = bpy.context.selected_objects and not (
+            bpy.context.active_object in bpy.context.selected_objects
+        )
+        Condition_4 = not bpy.context.active_object in bpy.context.visible_objects
+
+        Conditions = Condition_1 or Condition_2 or Condition_3 or Condition_4
+        if AlignModalState:
+            self.AlignLabels = "MODAL"
+        else:
+            if Conditions:
+                self.AlignLabels = "INVALID"
+
+            else:
+                self.AlignLabels = "READY"
+
+        #########################################
+
+        if self.AlignLabels == "READY":
+            TargetObjectName = context.active_object.name
+            SourceObjectName = [
+                obj
+                for obj in bpy.context.selected_objects
+                if not obj is bpy.context.active_object
+            ][0].name
+
+            box = layout.box()
+
+            row = box.row()
+            row.alert = True
+            row.alignment = "CENTER"
+            row.label(text="READY FOR ALIGNEMENT.")
+
+            row = box.row()
+            row.alignment = "CENTER"
+            row.label(text=f"{SourceObjectName} will be aligned to, {TargetObjectName}")
+
+        if self.AlignLabels == "INVALID" or self.AlignLabels == "NOTREADY":
+            box = layout.box()
+            row = box.row(align=True)
+            row.alert = True
+            row.alignment = "CENTER"
+            row.label(text="STANDBY MODE", icon="ERROR")
+
+        if self.AlignLabels == "MODAL":
+            box = layout.box()
+            row = box.row()
+            row.alert = True
+            row.alignment = "CENTER"
+            row.label(text="WAITING FOR ALIGNEMENT...")
+
+
+##############################################################################
+# JawTracker
+##############################################################################
+
+
+class BDENTAL_4D_PT_JawTrack(bpy.types.Panel):
+    """ JawTrack Panel """
+
+    bl_idname = "BDENTAL_4D_PT_JawTrack"  # Not importatnt alwas the same as class name
+    bl_label = " JAW-TRACK "  # this is the title (Top panel bare)
+    bl_space_type = "VIEW_3D"  # always the same if you want side panel
+    bl_region_type = "UI"  # always the same if you want side panel
+    bl_category = "BDENTAL-4D"  # this is the vertical name in the side usualy the name of addon :)
+    bl_options = {"DEFAULT_CLOSED"}
+
+    def draw(self, context):
+
+        BDENTAL_4D_Props = context.scene.BDENTAL_4D_Props
+        yellow_point = "KEYTYPE_KEYFRAME_VEC"
+        red_icon = "COLORSET_01_VEC"
+        green_icon = "COLORSET_03_VEC"
+
+        layout = self.layout
+        ##################################
+        # Camera Calibration UI :
+        ##################################
+        Box = layout.box()
+        row = Box.row()
+        row.alignment = "CENTER"
+        row.label(text="CAMERA CALIBRATION :")
+        row = Box.row()
+        split = row.split()
+        col = split.column()
+        col.label(text="Directory with calibration file:")
+        col = split.column()
+        col.prop(BDENTAL_4D_Props, "UserProjectDir", text="")
+
+        ProjDir = BDENTAL_4D_Props.UserProjectDir
+        if exists(ProjDir):
+
+            if not exists(CalibFile):
+                row = Box.row()
+                split = row.split()
+                col = split.column()
+                col.label(text="Calibration Images :")
+                col = split.column()
+                col.prop(BDENTAL_4D_Props, "CalibImages", text="")
+
+                row = Box.row()
+                split = row.split()
+                col = split.column()
+                col.label(text="Square length in meters :")
+                col = split.column()
+                col.label(text="Marker length in meters :")
+
+                row = Box.row()
+                split = row.split()
+                col = split.column()
+                col.prop(BDENTAL_4D_Props, "UserSquareLength", text="")
+                col = split.column()
+                col.prop(BDENTAL_4D_Props, "UserMarkerLength", text="")
+                row = Box.row()
+                row.operator("bdental4d.calibration")
+
+            else:
+                layout.label(text="Camera Calibration OK!", icon=green_icon)
+
+                row = Box.row()
+                split = row.split()
+                col = split.column()
+                col.label(text="Video-Track :")
+                col = split.column()
+                col.prop(BDENTAL_4D_Props, "TrackFile", text="")
+
+                row = Box.row()
+                split = row.split()
+                col = split.column()
+                col.label(text="Tracking type :")
+                col = split.column()
+                col.prop(BDENTAL_4D_Props, "TrackingType", text="")
+
+                row = Box.row()
+                row.operator("bdental4d.startrack")
+
+        ##################################
+        layout.separator()
+        ##################################
+
+        ##################################
+        # DATA READ UI :
+        ##################################
+        Box = layout.box()
+        row = Box.row()
+        row.alignment = "CENTER"
+        row.label(text="DATA READ :")
+
+        row = Box.row()
+        split = row.split()
+        col = split.column()
+        col.label(text="Tracking data file :")
+        col = split.column()
+        col.prop(BDENTAL_4D_Props, "TrackedData", text="")
+
+        # row.prop(BDENTAL_4D_Props, "TrackedData", text="Tracked data file")
+        row = Box.row()
+        row.operator("bdental4d.setupjaw")
+        if bpy.context.scene.objects.get("UpJaw") is not None:
+            row.operator("bdental4d.setlowjaw")
+        else:
+            row.alert = True
+            row.label(text="Set UpJaw First!")
+        row = Box.row()
+        row.operator("bdental4d.addboards")
+        row = Box.row()
+        row.operator("bdental4d.datareader")
+        row = Box.row()
+        if bpy.data.objects.get("LowMarker") is not None:
+            row.operator("bdental4d.smoothkeyframes")
+        else:
+            row.alert = True
+            row.alignment = "CENTER"
+            row.label(text="LowMarker not found")
+        row.operator
+        row = Box.row()
+        row.operator("bdental4d.drawpath")
+
+
+class BDENTAL_4D_PT_Measurements(bpy.types.Panel):
+    """ Measurements Panel"""
+
+    bl_idname = "BDENTAL_4D_PT_Measurements"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"  # blender 2.7 and lower = TOOLS
+    bl_category = "BDENTAL-4D"
+    bl_label = "MEASUREMENTS"
+    bl_options = {"DEFAULT_CLOSED"}
+
+    def draw(self, context):
+        BDENTAL_4D_Props = context.scene.BDENTAL_4D_Props
+        layout = self.layout
+        Box = layout.box()
+        row = Box.row()
+        row.operator("bdental4d.add_markup_point")
+        row.operator("bdental4d.add_reference_planes")
+        if BDENTAL_4D_Props.ActiveOperator == "bdental4d.add_reference_planes":
+            Box = layout.box()
+            Message = [
+                "Click to place cursor, <ENTER> to Add point",
+                "Please Add Reference points in this order :",
+                "- Nasion , Right Orbital, Right Porion, Left Orbital, Left Porion",
+                "Click <ENTER> to Add Reference Planes",
+            ]
+            for line in Message:
+                row = Box.row()
+                row.alert = True
+                row.label(text=line)
+        row = Box.row()
+        row.operator("bdental4d.ctvolume_orientation")
+
+
+class BDENTAL_4D_PT_Waxup(bpy.types.Panel):
+    """ WaxUp Panel"""
+
+    bl_idname = "BDENTAL_4D_PT_Waxup"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"  # blender 2.7 and lower = TOOLS
+    bl_category = "BDENTAL-4D"
+    bl_label = "WAXUP"
+    bl_options = {"DEFAULT_CLOSED"}
+
+    def draw(self, context):
+        BDENTAL_4D_Props = context.scene.BDENTAL_4D_Props
+        #        scn = bpy.context.scene
+        #        Occlusal_Plane = bpy.data.objects.get["Occlusal_Plane"]
+        #        if bpy.data.objects.get("ObjectName") is not None:
+        layout = self.layout
+        row = layout.row()
+        row.operator(
+            "bdental4d.lowjawchildtolowmarker",
+            text="Start LowJaw Movings",
+            icon="LIBRARY_DATA_INDIRECT",
+        )
+
+        layout = self.layout
+        split = layout.split(factor=2 / 3, align=False)
+        col = split.column()
+        row = col.row()
+        row.operator("bdental4d.addocclusalplane", text="Occlusal Plane")
+        col = split.column()
+        row = col.row()
+        #        row.alert = True
+        row.operator("bdental4d.occlusalplaneinfo", text="INFO", icon="INFO")
+
+        layout = self.layout
+        row = layout.row()
+        row.prop(BDENTAL_4D_Props, "BakeLowPlane", text="Bake Lower")
+        row.prop(BDENTAL_4D_Props, "BakeUpPlane", text="Bake Upper")
+        Occlusal_Plane = bpy.data.objects.get("Occlusal_Plane")
+        UpJaw = bpy.data.objects.get("UpJaw")
+        LowJaw = bpy.data.objects.get("LowJaw")
+
+        if BDENTAL_4D_Props.BakeLowPlane or BDENTAL_4D_Props.BakeUpPlane:
+            if Occlusal_Plane is not None and UpJaw is not None and LowJaw is not None:
+                row = layout.row()
+                row.operator("bdental4d.bakeplane", text="START", icon="ONIONSKIN_ON")
+
+            elif Occlusal_Plane is None:
+                row = layout.row()
+                row.alert = True
+                row.label(text="Occlusal plane is not detected!")
+            elif UpJaw is None:
+                row = layout.row()
+                row.alert = True
+                row.label(text="UpJaw is not detected!")
+            elif LowJaw is None:
+                row = layout.row()
+                row.alert = True
+                row.label(text="LowJaw is not detected!")
+
+        if BDENTAL_4D_Props.BakeLowPlane == True:
+            print("Low Enabled")
+        else:
+            print("Low Disabled")
+
+        if BDENTAL_4D_Props.BakeUpPlane == True:
+            print("Up Enabled")
+        else:
+            print("Up Disabled")
+
+
+##################################################################################
+
 # Registration :
 #################################################################################################
 
 classes = [
     BDENTAL_4D_PT_MainPanel,
     BDENTAL_4D_PT_ScanPanel,
-    BDENTAL_4D_PT_Measurements,
-    BDENTAL_4D_PT_Guide,
     BDENTAL_4D_PT_MeshesTools_Panel,
+    BDENTAL_4D_PT_Align,
+    BDENTAL_4D_PT_Guide,
+    BDENTAL_4D_PT_JawTrack,
+    BDENTAL_4D_PT_Measurements,
+    BDENTAL_4D_PT_Waxup,
 ]
 
 

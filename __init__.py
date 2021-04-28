@@ -104,13 +104,18 @@ else:
 
     # Addon modules imports :
     from . import BDENTAL_4D_Props, BDENTAL_4D_Panel
-    from .Operators import BDENTAL_4D_ScanOperators, BDENTAL_4D_MeshesTools_Operators
+    from .Operators import (
+        BDENTAL_4D_Operators,
+        JTracker_Operators,
+        JTracker_WAXUP_Operators,
+    )
 
     addon_modules = [
         BDENTAL_4D_Props,
         BDENTAL_4D_Panel,
-        BDENTAL_4D_ScanOperators,
-        BDENTAL_4D_MeshesTools_Operators,
+        BDENTAL_4D_Operators,
+        JTracker_Operators,
+        JTracker_WAXUP_Operators,
     ]
     init_classes = []
 
