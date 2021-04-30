@@ -33,9 +33,7 @@ Addon_Enable(AddonName="mesh_looptools", Enable=True)
 
 addon_dir = dirname(dirname(abspath(__file__)))
 DataBlendFile = join(addon_dir, "Resources", "BlendData", "BDENTAL_4D_BlendData.blend")
-ImplantLibraryBlendFile = join(
-    addon_dir, "Resources", "BlendData", "NEOBIOTECH_LIBRARY.blend"
-)
+
 GpShader = "VGS_Marcos_modified"  # "VGS_Marcos_01" "VGS_Dakir_01"
 Wmin = -400
 Wmax = 3000
@@ -929,11 +927,12 @@ class BDENTAL_4D_OT_AddSlices(bpy.types.Operator):
 
                 bpy.ops.object.empty_add(
                     type="PLAIN_AXES",
-                    align="WORLD",
-                    location=AxialPlane.location,
                     scale=(1, 1, 1),
                 )
+
                 SLICES_POINTER = bpy.context.object
+                SLICES_POINTER.matrix_world = AxialPlane.matrix_world
+
                 SLICES_POINTER.empty_display_size = 20
                 SLICES_POINTER.show_name = True
                 SLICES_POINTER.show_in_front = True
@@ -1990,6 +1989,9 @@ class BDENTAL_4D_OT_AddMarkupPoint(bpy.types.Operator):
         size=4,
         subtype="COLOR",
     )
+    Markur_Diameter: FloatProperty(
+        description="Diameter", default=1, step=1, precision=2
+    )
 
     CollName = "Markup Points"
 
@@ -2001,7 +2003,11 @@ class BDENTAL_4D_OT_AddMarkupPoint(bpy.types.Operator):
 
         Co = context.scene.cursor.location
         P = AddMarkupPoint(
-            name=self.MarkupName, color=self.MarkupColor, loc=Co, CollName=self.CollName
+            name=self.MarkupName,
+            color=self.MarkupColor,
+            loc=Co,
+            Diameter=self.Markur_Diameter,
+            CollName=self.CollName,
         )
 
         return {"FINISHED"}
@@ -2181,8 +2187,11 @@ class BDENTAL_4D_OT_AddTeeth(bpy.types.Operator):
                 space3D.overlay.show_axis_x = True
                 space3D.overlay.show_axis_y = True
 
-                for obj in self.visibleObjects:
-                    obj.hide_set(False)
+                if self.visibleObjects:
+                    for Name in self.visibleObjects:
+                        obj = bpy.data.objects.get(Name)
+                        if obj:
+                            obj.hide_set(False)
 
                 bpy.ops.object.select_all(Override, action="DESELECT")
                 bpy.ops.screen.screen_full_area(Override)
@@ -2206,8 +2215,11 @@ class BDENTAL_4D_OT_AddTeeth(bpy.types.Operator):
                 space3D.overlay.show_axis_x = True
                 space3D.overlay.show_axis_y = True
 
-                for obj in self.visibleObjects:
-                    obj.hide_set(False)
+                if self.visibleObjects:
+                    for Name in self.visibleObjects:
+                        obj = bpy.data.objects.get(Name)
+                        if obj:
+                            obj.hide_set(False)
 
                 for obj in self.Coll.objects:
                     bpy.data.objects.remove(obj)
@@ -2239,7 +2251,7 @@ class BDENTAL_4D_OT_AddTeeth(bpy.types.Operator):
             ###########################################################
             self.TeethLibrary = BDENTAL_4D_Props.TeethLibrary
 
-            self.visibleObjects = bpy.context.visible_objects.copy()
+            self.visibleObjects = [obj.name for obj in bpy.context.visible_objects]
 
             self.BackGroundType = space3D.shading.type
             space3D.shading.type == "SOLID"
@@ -2265,8 +2277,10 @@ class BDENTAL_4D_OT_AddTeeth(bpy.types.Operator):
             space3D.overlay.show_axis_x = False
             space3D.overlay.show_axis_y = False
 
-            for obj in self.visibleObjects:
-                obj.hide_set(True)
+            for Name in self.visibleObjects:
+                obj = bpy.data.objects.get(Name)
+                if obj:
+                    obj.hide_set(True)
 
             filename = self.TeethLibrary
             directory = join(DataBlendFile, "Collection")
@@ -2295,6 +2309,45 @@ class BDENTAL_4D_OT_AddTeeth(bpy.types.Operator):
             return {"CANCELLED"}
 
 
+class BDENTAL_4D_OT_AddImplantSleeve(bpy.types.Operator):
+    """ Add Sleeve """
+
+    bl_idname = "bdental4d.add_implant_sleeve"
+    bl_label = "IMPLANT SLEEVE"
+
+    def execute(self, context):
+        if not context.active_object:
+            message = ["Please select The Implant!"]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+
+            return {"CANCELLED"}
+
+        if not context.active_object.select_get() or not context.object.name.startswith(
+            "IMPLANT"
+        ):
+            message = message = ["Please select the Implant!"]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+
+            return {"CANCELLED"}
+
+        else:
+            Implant = context.active_object
+            cursor = bpy.context.scene.cursor
+            cursor.matrix = Implant.matrix_world
+            bpy.ops.bdental4d.add_sleeve(Orientation="AXIAL")
+
+            Sleeve = context.active_object
+            Implant.select_set(True)
+            context.view_layer.objects.active = Implant
+            bpy.ops.object.parent_set(type="OBJECT", keep_transform=True)
+
+            bpy.ops.object.select_all(action="DESELECT")
+            Sleeve.select_set(True)
+            context.view_layer.objects.active = Sleeve
+
+            return {"FINISHED"}
+
+
 class BDENTAL_4D_OT_AddSleeve(bpy.types.Operator):
     """ Add Sleeve """
 
@@ -2310,6 +2363,13 @@ class BDENTAL_4D_OT_AddSleeve(bpy.types.Operator):
     Orientation: EnumProperty(items=items, description="Orientation", default="AXIAL")
 
     def execute(self, context):
+
+        BDENTAL_4D_Props = bpy.context.scene.BDENTAL_4D_Props
+        self.SleeveDiametre = BDENTAL_4D_Props.SleeveDiameter
+        self.SleeveHeight = BDENTAL_4D_Props.SleeveHeight
+        self.HoleDiameter = BDENTAL_4D_Props.HoleDiameter
+        self.HoleOffset = BDENTAL_4D_Props.HoleOffset
+        self.cursor = context.scene.cursor
 
         bpy.ops.object.select_all(action="DESELECT")
         bpy.ops.mesh.primitive_cylinder_add(
@@ -2352,7 +2412,6 @@ class BDENTAL_4D_OT_AddSleeve(bpy.types.Operator):
         Pin.select_set(True)
         context.view_layer.objects.active = Sleeve
         bpy.ops.object.parent_set(type="OBJECT", keep_transform=True)
-        Pin.select_set(False)
 
         for obj in [Pin, Sleeve]:
             MoveToCollection(obj, "GUIDE Components")
@@ -2360,14 +2419,6 @@ class BDENTAL_4D_OT_AddSleeve(bpy.types.Operator):
         return {"FINISHED"}
 
     def invoke(self, context, event):
-
-        BDENTAL_4D_Props = bpy.context.scene.BDENTAL_4D_Props
-        self.SleeveDiametre = BDENTAL_4D_Props.SleeveDiameter
-        self.SleeveHeight = BDENTAL_4D_Props.SleeveHeight
-        self.HoleDiameter = BDENTAL_4D_Props.HoleDiameter
-        self.HoleOffset = BDENTAL_4D_Props.HoleOffset
-        self.cursor = context.scene.cursor
-
         wm = context.window_manager
         return wm.invoke_props_dialog(self)
 
@@ -2403,6 +2454,9 @@ class BDENTAL_4D_OT_AddImplant(bpy.types.Operator):
     Implant_Lenght: EnumProperty(items=items, description="LENGHT", default="10")
 
     def AddImplant(self, context):
+        ImplantLibraryBlendFile = join(
+            addon_dir, "Resources", "BlendData", f"{self.ImplantLibrary}.blend"
+        )
         filename = f"IMPLANT_{self.Implant_Diameter}_{self.Implant_Lenght}"
         directory = join(ImplantLibraryBlendFile, "Object")
         bpy.ops.wm.append(directory=directory, filename=filename)
@@ -2414,32 +2468,38 @@ class BDENTAL_4D_OT_AddImplant(bpy.types.Operator):
         self.AddImplant(context)
         self.Implant.matrix_world = self.matrix
         MoveToCollection(self.Implant, "GUIDE Components")
-
-        if self.mode == "Pointer":
-            self.Pointer.select_set(True)
-            context.view_layer.objects.active = self.Pointer
-            bpy.ops.object.parent_set(type="OBJECT", keep_transform=True)
-            self.Implant.select_set(False)
+        self.Pointer.select_set(True)
+        context.view_layer.objects.active = self.Pointer
+        bpy.ops.object.parent_set(type="OBJECT", keep_transform=True)
+        bpy.ops.object.select_all(action="DESELECT")
+        self.Pointer.select_set(True)
+        context.view_layer.objects.active = self.Pointer
 
         return {"FINISHED"}
 
     def invoke(self, context, event):
+        BDENTAL_4D_Props = bpy.context.scene.BDENTAL_4D_Props
+        if not context.active_object:
+            message = ["Please select The SLICES_POINTER!"]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
 
-        if context.object:
+            return {"CANCELLED"}
 
-            if context.object.select_get() and "SLICES_POINTER" in context.object.name:
-                self.matrix = context.object.matrix_world
-                self.mode = "Pointer"
-                self.Pointer = context.object
+        if not context.active_object.select_get() or not context.object.name.endswith(
+            "_SLICES_POINTER"
+        ):
+            message = message = ["Please select the SLICES_POINTER!"]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
 
-            else:
-                self.matrix = context.scene.cursor.matrix
-                self.mode = "Cursor"
+            return {"CANCELLED"}
+
         else:
-            self.matrix = context.scene.cursor.matrix
-            self.mode = "Cursor"
-        wm = context.window_manager
-        return wm.invoke_props_dialog(self)
+            self.matrix = context.object.matrix_world
+            self.Pointer = context.active_object
+
+            self.ImplantLibrary = BDENTAL_4D_Props.ImplantLibrary
+            wm = context.window_manager
+            return wm.invoke_props_dialog(self)
 
 
 ##################################################################
@@ -2604,6 +2664,21 @@ class BDENTAL_4D_OT_ModelBase(bpy.types.Operator):
     bl_label = "Model Base"
     bl_options = {"REGISTER", "UNDO"}
 
+    Model_Types = ["Upper Model", "Lower Model"]
+    items = []
+    for i in range(len(Model_Types)):
+        item = (str(Model_Types[i]), str(Model_Types[i]), str(""), int(i))
+        items.append(item)
+
+    ModelType: EnumProperty(
+        items=items, description="Model Type", default="Upper Model"
+    )
+    HollowModel: BoolProperty(
+        name="Make Hollow Model",
+        description="Add Hollow Model",
+        default=False,
+    )
+
     def execute(self, context):
         if not context.active_object:
             message = ["Please select target mesh !"]
@@ -2640,24 +2715,13 @@ class BDENTAL_4D_OT_ModelBase(bpy.types.Operator):
                 return {"CANCELLED"}
 
             else:
-                Override, area3D, space3D = CtxOverride(context)
                 BaseHeight = context.scene.BDENTAL_4D_Props.BaseHeight
-                # show_box = bpy.context.scene.BDENTAL_4D_Props.show_box
-
                 obj = TargetMesh
-
-                ####### Flip Model_Base to top view #######
-                # mtx90_X = Euler((radians(90), 0, 0)).to_matrix().to_4x4()
-                view_rotation = space3D.region_3d.view_rotation
-                view3d_rot_matrix = view_rotation.to_matrix().to_4x4()
-
-                flip_matrix = view3d_rot_matrix.inverted()
-                unflip_matrix = view3d_rot_matrix
 
                 ####### Duplicate Target Mesh #######
                 bpy.ops.object.select_all(action="DESELECT")
-                TargetMesh.select_set(True)
-                bpy.context.view_layer.objects.active = TargetMesh
+                obj.select_set(True)
+                bpy.context.view_layer.objects.active = obj
                 bpy.ops.object.duplicate_move()
 
                 ModelBase = context.object
@@ -2675,8 +2739,6 @@ class BDENTAL_4D_OT_ModelBase(bpy.types.Operator):
                     iterations="3",
                     regular=True,
                 )
-                # Flip Model :
-                ModelBase.matrix_world = flip_matrix @ ModelBase.matrix_world
 
                 # Make some calcul of average z_cordinate of border vertices :
 
@@ -2686,7 +2748,22 @@ class BDENTAL_4D_OT_ModelBase(bpy.types.Operator):
                 verts = obj.data.vertices
                 global_z_cords = [(obj_mx @ v.co)[2] for v in verts]
 
-                min_z = min(global_z_cords)
+                HollowOffset = 0
+                if self.ModelType == "Upper Model":
+                    Extrem_z = max(global_z_cords)
+                    Delta = BaseHeight
+                    if self.HollowModel:
+                        HollowOffset = 4
+                        BisectPlaneLoc = Vector((0, 0, Extrem_z))
+                        BisectPlaneNormal = Vector((0, 0, 1))
+
+                if self.ModelType == "Lower Model":
+                    Extrem_z = min(global_z_cords)
+                    Delta = -BaseHeight
+                    if self.HollowModel:
+                        HollowOffset = -4
+                        BisectPlaneLoc = Vector((0, 0, Extrem_z))
+                        BisectPlaneNormal = Vector((0, 0, -1))
 
                 # Border_2 = Extrude 1st border loop no translation :
                 bpy.ops.object.mode_set(mode="EDIT")
@@ -2700,22 +2777,241 @@ class BDENTAL_4D_OT_ModelBase(bpy.types.Operator):
                 for v in selected_verts:
                     global_v_co = obj_mx @ v.co
                     v.co = obj_mx.inverted() @ Vector(
-                        (global_v_co[0], global_v_co[1], min_z - BaseHeight)
+                        (
+                            global_v_co[0],
+                            global_v_co[1],
+                            Extrem_z + Delta + HollowOffset,
+                        )
                     )
 
                 # fill base :
                 bpy.ops.object.mode_set(mode="EDIT")
-                bpy.ops.mesh.fill(use_beauty=False)
+                bpy.ops.mesh.edge_face_add()
+                bpy.ops.mesh.dissolve_limited()
+
+                bpy.ops.mesh.select_all(action="SELECT")
+                bpy.ops.mesh.fill_holes(sides=100)
+
+                bpy.ops.mesh.select_all(action="SELECT")
+                bpy.ops.mesh.normals_make_consistent(inside=False)
+                bpy.ops.mesh.select_all(action="DESELECT")
                 bpy.ops.object.mode_set(mode="OBJECT")
 
-                # Model_base matrix_world reset :
+                if self.HollowModel:
+                    bpy.ops.bdental4d.hollow_model(thikness=2)
+                    HollowModel = context.active_object
 
-                obj.matrix_world = unflip_matrix @ obj.matrix_world
+                    bpy.ops.object.mode_set(mode="EDIT")
+                    bpy.ops.mesh.select_all(action="SELECT")
+
+                    bpy.ops.mesh.bisect(
+                        plane_co=BisectPlaneLoc,
+                        plane_no=BisectPlaneNormal,
+                        use_fill=True,
+                        clear_inner=False,
+                        clear_outer=True,
+                    )
+                    bpy.ops.mesh.select_all(action="DESELECT")
+                    bpy.ops.object.mode_set(mode="OBJECT")
+
+                    bpy.ops.object.select_all(action="DESELECT")
+                    obj.select_set(True)
+                    bpy.context.view_layer.objects.active = obj
+                    bpy.ops.object.mode_set(mode="EDIT")
+                    bpy.ops.mesh.select_all(action="SELECT")
+                    bpy.ops.mesh.bisect(
+                        plane_co=BisectPlaneLoc,
+                        plane_no=BisectPlaneNormal,
+                        use_fill=True,
+                        clear_inner=False,
+                        clear_outer=True,
+                    )
+                    bpy.ops.mesh.select_all(action="DESELECT")
+                    bpy.ops.object.mode_set(mode="OBJECT")
 
                 message = ["Model Base created successfully"]
                 ShowMessageBox(message=message, icon="COLORSET_03_VEC")
 
                 return {"FINISHED"}
+
+    def invoke(self, context, event):
+
+        Active_Obj = context.active_object
+
+        if not Active_Obj:
+            message = [" Please select Target mesh Object ! "]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+            return {"CANCELLED"}
+
+        if Active_Obj.select_get() == False or Active_Obj.type != "MESH":
+            message = [" Please select Target mesh Object ! "]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+            return {"CANCELLED"}
+
+        else:
+            self.Active_Obj = Active_Obj
+            wm = context.window_manager
+            return wm.invoke_props_dialog(self)
+
+
+class BDENTAL_4D_OT_hollow_model(bpy.types.Operator):
+    """Create a hollow Dental Model from closed Model """
+
+    bl_idname = "bdental4d.hollow_model"
+    bl_label = "Hollow Model"
+    bl_options = {"REGISTER", "UNDO"}
+
+    thikness: FloatProperty(description="OFFSET", default=2, step=1, precision=2)
+
+    def execute(self, context):
+
+        Model = context.active_object
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.mesh.select_all(action="DESELECT")
+        bpy.ops.mesh.select_non_manifold()
+
+        bpy.ops.object.mode_set(mode="OBJECT")
+        verts = Model.data.vertices
+        selected_verts = [v for v in verts if v.select]
+
+        if selected_verts:
+
+            message = [" Invalid mesh! Please clean mesh first !"]
+            ShowMessageBox(message=message, icon="COLORSET_01_VEC")
+
+            return {"CANCELLED"}
+
+        else:
+
+            # Prepare scene settings :
+
+            bpy.ops.view3d.snap_cursor_to_center()
+            bpy.ops.transform.select_orientation(orientation="GLOBAL")
+            bpy.context.scene.tool_settings.transform_pivot_point = "INDIVIDUAL_ORIGINS"
+            bpy.context.tool_settings.mesh_select_mode = (True, False, False)
+            bpy.context.scene.tool_settings.use_snap = False
+            bpy.context.scene.tool_settings.use_proportional_edit_objects = False
+            bpy.ops.object.mode_set(mode="OBJECT")
+            bpy.ops.object.origin_set(type="ORIGIN_GEOMETRY", center="MEDIAN")
+
+            ####### Duplicate Model #######
+
+            # Duplicate Model to Model_hollow:
+
+            bpy.ops.object.select_all(action="DESELECT")
+            Model.select_set(True)
+            bpy.context.view_layer.objects.active = Model
+            bpy.ops.object.duplicate_move()
+
+            # Rename Model_hollow....
+
+            Model_hollow = context.active_object
+            Model_hollow.name = Model.name + "_hollow"
+
+            # Duplicate Model_hollow and make a low resolution duplicate :
+
+            bpy.ops.object.duplicate_move()
+
+            # Rename Model_lowres :
+
+            Model_lowres = bpy.context.view_layer.objects.active
+            Model_lowres.name = "Model_lowres"
+            mesh_lowres = Model_lowres.data
+            mesh_lowres.name = "Model_lowres_mesh"
+
+            # Get Model_lowres :
+
+            bpy.ops.object.select_all(action="DESELECT")
+            Model_lowres.select_set(True)
+            bpy.context.view_layer.objects.active = Model_lowres
+
+            # remesh Model_lowres 1.0 mm :
+
+            bpy.context.object.data.use_remesh_smooth_normals = True
+            bpy.context.object.data.use_remesh_preserve_volume = True
+            bpy.context.object.data.use_remesh_fix_poles = True
+            bpy.context.object.data.remesh_voxel_size = 1
+            bpy.ops.object.voxel_remesh()
+
+            # Add Metaballs :
+
+            obj = Model_lowres
+
+            loc, rot, scale = obj.matrix_world.decompose()
+
+            verts = obj.data.vertices
+            vcords = [rot @ v.co + loc for v in verts]
+            mball_elements_cords = [vco - vcords[0] for vco in vcords[1:]]
+
+            bpy.ops.object.mode_set(mode="OBJECT")
+            bpy.ops.object.select_all(action="DESELECT")
+
+            thikness = self.thikness
+            radius = thikness * 5 / 8
+
+            bpy.ops.object.metaball_add(
+                type="BALL", radius=radius, enter_editmode=False, location=vcords[0]
+            )
+
+            Mball_object = bpy.context.view_layer.objects.active
+            Mball_object.name = "Mball_object"
+            mball = Mball_object.data
+            mball.resolution = 0.6
+            bpy.context.object.data.update_method = "FAST"
+
+            for i in range(len(mball_elements_cords)):
+                element = mball.elements.new()
+                element.co = mball_elements_cords[i]
+                element.radius = radius * 2
+
+            bpy.ops.object.convert(target="MESH")
+
+            Mball_object = bpy.context.view_layer.objects.active
+            Mball_object.name = "Mball_object"
+            mball_mesh = Mball_object.data
+            mball_mesh.name = "Mball_object_mesh"
+
+            # Get Hollow Model :
+
+            bpy.ops.object.select_all(action="DESELECT")
+            Model_hollow.select_set(True)
+            bpy.context.view_layer.objects.active = Model_hollow
+
+            # Make boolean intersect operation :
+            bpy.ops.object.modifier_add(type="BOOLEAN")
+            bpy.context.object.modifiers["Boolean"].show_viewport = False
+            bpy.context.object.modifiers["Boolean"].operation = "INTERSECT"
+            bpy.context.object.modifiers["Boolean"].object = Mball_object
+
+            bpy.ops.object.modifier_apply(modifier="Boolean")
+
+            # Delet Model_lowres and Mball_object:
+            bpy.data.objects.remove(Model_lowres)
+            bpy.data.objects.remove(Mball_object)
+
+            # Hide everything but hollow model + Model :
+
+            bpy.ops.object.select_all(action="DESELECT")
+
+            return {"FINISHED"}
+
+    def invoke(self, context, event):
+
+        Active_Obj = context.active_object
+
+        if not Active_Obj:
+            message = [" Please select Target mesh Object ! "]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+            return {"CANCELLED"}
+
+        if Active_Obj.select_get() == False or Active_Obj.type != "MESH":
+            message = [" Please select Target mesh Object ! "]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+            return {"CANCELLED"}
+
+        else:
+            wm = context.window_manager
+            return wm.invoke_props_dialog(self)
 
 
 class BDENTAL_4D_OT_BlockModel(bpy.types.Operator):
@@ -2789,6 +3085,45 @@ class BDENTAL_4D_OT_BlockModel(bpy.types.Operator):
                 bpy.ops.object.voxel_remesh()
 
                 return {"FINISHED"}
+
+
+class BDENTAL_4D_OT_add_offset(bpy.types.Operator):
+    """ Add offset to mesh """
+
+    bl_idname = "bdental4d.add_offset"
+    bl_label = "Add Offset"
+    bl_options = {"REGISTER", "UNDO"}
+
+    Offset: FloatProperty(description="OFFSET", default=0.1, step=1, precision=2)
+
+    def execute(self, context):
+
+        offset = round(self.Offset, 2)
+
+        bpy.ops.object.mode_set(mode="OBJECT")
+        bpy.ops.object.modifier_add(type="DISPLACE")
+        bpy.context.object.modifiers["Displace"].strength = offset
+        bpy.ops.object.modifier_apply(modifier="Displace")
+
+        return {"FINISHED"}
+
+    def invoke(self, context, event):
+
+        Active_Obj = context.active_object
+
+        if not Active_Obj:
+            message = [" Please select Target mesh Object ! "]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+            return {"CANCELLED"}
+
+        if Active_Obj.select_get() == False or Active_Obj.type != "MESH":
+            message = [" Please select Target mesh Object ! "]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+            return {"CANCELLED"}
+
+        else:
+            wm = context.window_manager
+            return wm.invoke_props_dialog(self)
 
 
 #######################################################################
@@ -3255,6 +3590,69 @@ class BDENTAL_4D_OT_AlignPointsInfo(bpy.types.Operator):
 ########################################################################
 # Mesh Tools Operators
 ########################################################################
+class BDENTAL_4D_OT_AddColor(bpy.types.Operator):
+    """Add color material """
+
+    bl_idname = "bdental4d.add_color"
+    bl_label = "Add Color"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj:
+
+            message = ["Please select target object !"]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+            return {"CANCELLED"}
+
+        if not obj.select_get() or not obj.type in ["MESH", "CURVE"]:
+            message = ["Please select target object !"]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+
+            return {"CANCELLED"}
+
+        else:
+
+            matName = f"{obj.name}_Mat"
+            mat = bpy.data.materials.get(matName) or bpy.data.materials.new(matName)
+            mat.use_nodes = False
+            mat.diffuse_color = [0.8, 0.8, 0.8, 1.0]
+
+            obj.active_material = mat
+
+        return {"FINISHED"}
+
+
+class BDENTAL_4D_OT_RemoveColor(bpy.types.Operator):
+    """Remove color material """
+
+    bl_idname = "bdental4d.remove_color"
+    bl_label = "Remove Color"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj:
+
+            message = ["Please select target object !"]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+            return {"CANCELLED"}
+
+        if not obj.select_get() or not obj.type in ["MESH", "CURVE"]:
+            message = ["Please select target object !"]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+
+            return {"CANCELLED"}
+
+        else:
+
+            if obj.material_slots:
+                for _ in obj.material_slots:
+                    bpy.ops.object.material_slot_remove()
+
+        return {"FINISHED"}
+
+
 class BDENTAL_4D_OT_JoinObjects(bpy.types.Operator):
     " Join Objects "
 
@@ -5308,12 +5706,17 @@ classes = [
     BDENTAL_4D_OT_AddTeeth,
     BDENTAL_4D_OT_AddSleeve,
     BDENTAL_4D_OT_AddImplant,
+    BDENTAL_4D_OT_AddImplantSleeve,
     BDENTAL_4D_OT_AddSplint,
     BDENTAL_4D_OT_Survey,
     BDENTAL_4D_OT_BlockModel,
     BDENTAL_4D_OT_ModelBase,
+    BDENTAL_4D_OT_add_offset,
+    BDENTAL_4D_OT_hollow_model,
     BDENTAL_4D_OT_AlignPoints,
     BDENTAL_4D_OT_AlignPointsInfo,
+    BDENTAL_4D_OT_AddColor,
+    BDENTAL_4D_OT_RemoveColor,
     BDENTAL_4D_OT_JoinObjects,
     BDENTAL_4D_OT_SeparateObjects,
     BDENTAL_4D_OT_Parent,

@@ -307,6 +307,18 @@ class BDENTAL_4D_Props(bpy.types.PropertyGroup):
         description="Teeth Library",
         default="Christian Brenes Teeth Library",
     )
+
+    ImplantLibList = ["BDENTAL4D_Implant_Library"]
+    items = []
+    for i in range(len(ImplantLibList)):
+        item = (str(ImplantLibList[i]), str(ImplantLibList[i]), str(""), int(i))
+        items.append(item)
+
+    ImplantLibrary: EnumProperty(
+        items=items,
+        description="Implant Library",
+        default="BDENTAL4D_Implant_Library",
+    )
     #######################
     SleeveDiameter: FloatProperty(
         name="Sleeve Diameter",
@@ -362,6 +374,11 @@ class BDENTAL_4D_Props(bpy.types.PropertyGroup):
 
     # Decimate ratio prop :
     #######################
+    no_material_prop: StringProperty(
+        name="No Material",
+        default="No Color",
+        description="No active material found for active object",
+    )
     decimate_ratio: FloatProperty(
         description="Enter decimate ratio ", default=0.5, step=1, precision=2
     )

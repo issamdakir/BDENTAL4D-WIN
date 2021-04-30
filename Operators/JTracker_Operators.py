@@ -318,28 +318,22 @@ class BDENTAL_4D_OT_Calibration(bpy.types.Operator):
 
         # Save values to be used where matrix+dist is required, for instance for posture estimation
         # I save files in a pickle file, but you can use yaml or whatever works for you
-        f = open(
-            AbsPath(join(BDENTAL_4D_Props.JTrack_UserProjectDir, "calibration.pckl")),
-            "wb",
+        CalibFile = AbsPath(
+            join(BDENTAL_4D_Props.JTrack_UserProjectDir, "calibration.pckl")
         )
+        f = open(CalibFile, "wb")
         pickle.dump((cameraMatrix, distCoeffs, rvecs, tvecs), f)
         f.close()
 
         message = [
             "Calibration was successful!",
             "Calibration file used:",
-            AbsPath(join(BDENTAL_4D_Props.JTrack_UserProjectDir, "calibration.pckl")),
+            CalibFile,
         ]
         ShowMessageBox(message=message, title="INFO", icon="COLORSET_03_VEC")
 
         # Print to console our success
-        print(
-            "Calibration successful. Calibration file used: {}".format(
-                AbsPath(
-                    join(BDENTAL_4D_Props.JTrack_UserProjectDir, "calibration.pckl")
-                )
-            )
-        )
+        print(f"Calibration successful. Calibration file used: {CalibFile}")
 
         return {"FINISHED"}
 
@@ -357,16 +351,18 @@ class BDENTAL_4D_OT_StarTrack(bpy.types.Operator):
 
     def execute(self, context):
         BDENTAL_4D_Props = bpy.context.scene.BDENTAL_4D_Props
-        start = time.perf_counter()
-        resize = 1
+        ProjDir = AbsPath(BDENTAL_4D_Props.JTrack_UserProjectDir)
+        CalibFile = join(ProjDir, "calibration.pckl")
+        DataFile = join(ProjDir, "_DataFile.txt")
+        TrackFile = AbsPath(BDENTAL_4D_Props.TrackFile)
         #############################################################################################
         # create file and erase :
-        DataFile = AbsPath(join(BDENTAL_4D_Props.TrackFile, "_DataFile.txt"))
         with open(DataFile, "w+") as fw:
             fw.truncate(0)
 
         #############################################################################################
-
+        start = time.perf_counter()
+        resize = 1
         # Make a dictionary of {MarkerId : corners}
         MarkersIdCornersDict = dict()
         ARUCO_PARAMETERS = aruco.DetectorParameters_create()
@@ -395,10 +391,6 @@ class BDENTAL_4D_OT_StarTrack(bpy.types.Operator):
         elif BDENTAL_4D_Props.TrackingType == "Fast resized(1/2)":
             ARUCO_PARAMETERS.cornerRefinementMethod = aruco.CORNER_REFINE_SUBPIX
             resize = 2
-
-        CalibFile = AbsPath(
-            join(BDENTAL_4D_Props.JTrack_UserProjectDir, "calibration.pckl")
-        )
 
         ##############################################################################################
         Board_corners_upper = [
@@ -471,7 +463,7 @@ class BDENTAL_4D_OT_StarTrack(bpy.types.Operator):
         UpBoard = aruco.Board_create(Board_corners_upper, ARUCO_DICT, UpBoard_ids)
 
         ##############################################################################################
-        if not exists(BDENTAL_4D_Props.TrackFile):
+        if not exists(TrackFile):
             message = [" Invalid Track file check and retry."]
             ShowMessageBox(message=message, icon="COLORSET_01_VEC")
             return {"CANCELLED"}
@@ -494,7 +486,7 @@ class BDENTAL_4D_OT_StarTrack(bpy.types.Operator):
                 ShowMessageBox(message=message, icon="COLORSET_01_VEC")
                 return {"CANCELLED"}
 
-        cap = cv2.VideoCapture(BDENTAL_4D_Props.TrackFile)
+        cap = cv2.VideoCapture(TrackFile)
         total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         totalstr = str(total)
         count = 1
@@ -530,152 +522,150 @@ class BDENTAL_4D_OT_StarTrack(bpy.types.Operator):
             "Stream": {},
         }
         while True:
-            success, img = cap.read()
-            imgGrey = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-            if resize == 2:
-                imgGrey = cv2.pyrDown(imgGrey)  # reduce the image by 2 times
-
-            cv2.namedWindow("img", cv2.WINDOW_NORMAL)
-
-            # lists of ids and the corners beloning to each id
-            corners, ids, rejected = aruco.detectMarkers(
-                imgGrey,
-                ARUCO_DICT,
-                parameters=ARUCO_PARAMETERS,
-                cameraMatrix=cameraMatrix,
-                distCoeff=distCoeffs,
-            )
-
-            # Require 2> markers before drawing axis
-            if ids is not None and len(ids) >= 6:
-                for i in range(len(ids)):
-                    MarkersIdCornersDict[ids[i][0]] = (list(corners))[i]
-
-                LowCorners = [
-                    MarkersIdCornersDict[3],
-                    MarkersIdCornersDict[4],
-                    MarkersIdCornersDict[5],
-                ]
-                UpCorners = [
-                    MarkersIdCornersDict[0],
-                    MarkersIdCornersDict[1],
-                    MarkersIdCornersDict[2],
-                ]
-
-                # Estimate the posture of the board, which is a construction of 3D space based on the 2D video
-                Lowretval, Lowrvec, Lowtvec = cv2.aruco.estimatePoseBoard(
-                    LowCorners,
-                    LowBoard_ids,
-                    LowBoard,
-                    cameraMatrix / resize,
-                    distCoeffs,
-                    None,
-                    None,
-                )
-                Upretval, Uprvec, Uptvec = cv2.aruco.estimatePoseBoard(
-                    UpCorners,
-                    UpBoard_ids,
-                    UpBoard,
-                    cameraMatrix / resize,
-                    distCoeffs,
-                    None,
-                    None,
-                )
-
-                if Lowretval and Upretval:
-                    # Draw the camera posture calculated from the board
-                    Data_dict["Stream"][count] = {
-                        "UpBoard": [
-                            (Uptvec[0, 0], Uptvec[1, 0], Uptvec[2, 0]),
-                            (Uprvec[0, 0], Uprvec[1, 0], Uprvec[2, 0]),
-                        ],
-                        "LowBoard": [
-                            (Lowtvec[0, 0], Lowtvec[1, 0], Lowtvec[2, 0]),
-                            (Lowrvec[0, 0], Lowrvec[1, 0], Lowrvec[2, 0]),
-                        ],
-                    }
-                    count += 1
-                    img = aruco.drawAxis(
-                        img,
-                        cameraMatrix,
-                        distCoeffs,
-                        Uprvec,
-                        Uptvec,
-                        0.05,
-                    )
-                    img = aruco.drawAxis(
-                        img,
-                        cameraMatrix,
-                        distCoeffs,
-                        Lowrvec,
-                        Lowtvec,
-                        0.05,
-                    )
-
-                    currentFrame = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
-                    currentFramestr = str(currentFrame)
-                    perсent = currentFrame / total * 100
-                    perсent = str("{0:.2f}%".format(perсent))
-
-                    img = cv2.putText(
-                        img,
-                        currentFramestr + " frame of " + totalstr,
-                        org,
-                        font,
-                        fontScale,
-                        color,
-                        thickness,
-                        cv2.LINE_AA,
-                    )
-                    img = cv2.putText(
-                        img,
-                        perсent,
-                        org1,
-                        font,
-                        fontScale,
-                        color,
-                        thickness,
-                        cv2.LINE_AA,
-                    )
-                    img = cv2.putText(
-                        img,
-                        'to stop tracking press "Q"',
-                        org2,
-                        font,
-                        fontScaleSmall,
-                        color,
-                        thickness1,
-                        cv2.LINE_AA,
-                    )
-
-                    if resize == 2:
-                        img = cv2.pyrDown(img)
-                        img = cv2.aruco.drawDetectedMarkers(
-                            img, corners, ids, (0, 255, 0)
-                        )
-
-                    else:
-                        img = cv2.aruco.drawDetectedMarkers(
-                            img, corners, ids, (0, 255, 0)
-                        )
-
-                    cv2.imshow("img", img)
-
-                    if currentFrame == total:
-                        cv2.destroyAllWindows()
-                        break
-
-            # cv2.imshow("img", img)
-
             if cv2.waitKey(1) & 0xFF == ord("q"):
-
                 cv2.destroyAllWindows()
                 break
+            success, img = cap.read()
+            if success:
+                imgGrey = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+                if resize == 2:
+                    imgGrey = cv2.pyrDown(imgGrey)  # reduce the image by 2 times
+
+                cv2.namedWindow("img", cv2.WINDOW_NORMAL)
+
+                # lists of ids and the corners beloning to each id
+                corners, ids, rejected = aruco.detectMarkers(
+                    imgGrey,
+                    ARUCO_DICT,
+                    parameters=ARUCO_PARAMETERS,
+                    cameraMatrix=cameraMatrix,
+                    distCoeff=distCoeffs,
+                )
+
+                # Require 2> markers before drawing axis
+                if ids is not None and len(ids) >= 6:
+                    for i in range(len(ids)):
+                        MarkersIdCornersDict[ids[i][0]] = (list(corners))[i]
+
+                    LowCorners = [
+                        MarkersIdCornersDict[3],
+                        MarkersIdCornersDict[4],
+                        MarkersIdCornersDict[5],
+                    ]
+                    UpCorners = [
+                        MarkersIdCornersDict[0],
+                        MarkersIdCornersDict[1],
+                        MarkersIdCornersDict[2],
+                    ]
+
+                    # Estimate the posture of the board, which is a construction of 3D space based on the 2D video
+                    Lowretval, Lowrvec, Lowtvec = cv2.aruco.estimatePoseBoard(
+                        LowCorners,
+                        LowBoard_ids,
+                        LowBoard,
+                        cameraMatrix / resize,
+                        distCoeffs,
+                        None,
+                        None,
+                    )
+                    Upretval, Uprvec, Uptvec = cv2.aruco.estimatePoseBoard(
+                        UpCorners,
+                        UpBoard_ids,
+                        UpBoard,
+                        cameraMatrix / resize,
+                        distCoeffs,
+                        None,
+                        None,
+                    )
+
+                    if Lowretval and Upretval:
+                        # Draw the camera posture calculated from the board
+                        Data_dict["Stream"][count] = {
+                            "UpBoard": [
+                                (Uptvec[0, 0], Uptvec[1, 0], Uptvec[2, 0]),
+                                (Uprvec[0, 0], Uprvec[1, 0], Uprvec[2, 0]),
+                            ],
+                            "LowBoard": [
+                                (Lowtvec[0, 0], Lowtvec[1, 0], Lowtvec[2, 0]),
+                                (Lowrvec[0, 0], Lowrvec[1, 0], Lowrvec[2, 0]),
+                            ],
+                        }
+                        count += 1
+                        img = aruco.drawAxis(
+                            img,
+                            cameraMatrix,
+                            distCoeffs,
+                            Uprvec,
+                            Uptvec,
+                            0.05,
+                        )
+                        img = aruco.drawAxis(
+                            img,
+                            cameraMatrix,
+                            distCoeffs,
+                            Lowrvec,
+                            Lowtvec,
+                            0.05,
+                        )
+
+                        currentFrame = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
+                        currentFramestr = str(currentFrame)
+                        perсent = currentFrame / total * 100
+                        perсent = str("{0:.2f}%".format(perсent))
+
+                        img = cv2.putText(
+                            img,
+                            currentFramestr + " frame of " + totalstr,
+                            org,
+                            font,
+                            fontScale,
+                            color,
+                            thickness,
+                            cv2.LINE_AA,
+                        )
+                        img = cv2.putText(
+                            img,
+                            perсent,
+                            org1,
+                            font,
+                            fontScale,
+                            color,
+                            thickness,
+                            cv2.LINE_AA,
+                        )
+                        img = cv2.putText(
+                            img,
+                            'to stop tracking press "Q"',
+                            org2,
+                            font,
+                            fontScaleSmall,
+                            color,
+                            thickness1,
+                            cv2.LINE_AA,
+                        )
+
+                        if resize == 2:
+                            img = cv2.pyrDown(img)
+                            img = cv2.aruco.drawDetectedMarkers(
+                                img, corners, ids, (0, 255, 0)
+                            )
+
+                        else:
+                            img = cv2.aruco.drawDetectedMarkers(
+                                img, corners, ids, (0, 255, 0)
+                            )
+
+                        cv2.imshow("img", img)
+
+                        if currentFrame == total:
+                            cv2.destroyAllWindows()
+                            break
 
         with open(DataFile, "a") as DF:
             Data = str(Data_dict)
             DF.write(Data)
+        BDENTAL_4D_Props.TrackedData = RelPath(DataFile)
 
         return {"FINISHED"}
 

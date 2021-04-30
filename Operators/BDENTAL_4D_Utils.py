@@ -149,8 +149,8 @@ def CtxOverride(context):
 
 
 def AbsPath(P):
-    # if P.startswith('//') :
-    P = abspath(bpy.path.abspath(P))
+    if P.startswith("//"):
+        P = abspath(bpy.path.abspath(P))
     return P
 
 
@@ -258,9 +258,9 @@ def AddFrankfortPoint(PointsList, color, CollName):
         return None
 
 
-def AddMarkupPoint(name, color, loc, CollName=None):
+def AddMarkupPoint(name, color, loc, Diameter=1, CollName=None):
 
-    bpy.ops.mesh.primitive_uv_sphere_add(radius=1.2, location=loc)
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=Diameter / 2, location=loc)
     P = bpy.context.object
     P.name = name
     P.data.name = name + "_mesh"
