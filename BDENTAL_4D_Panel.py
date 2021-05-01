@@ -244,27 +244,32 @@ class BDENTAL_4D_PT_MeshesTools_Panel(bpy.types.Panel):
         Box = layout.box()
         row = Box.row()
         row.prop(BDENTAL_4D_Props, "Cutting_Tools_Types_Prop", text="")
+
         if BDENTAL_4D_Props.Cutting_Tools_Types_Prop == "Curve Cutter 1":
             row = Box.row()
+            row.prop(BDENTAL_4D_Props, "CurveCutCloseMode", text="")
             row.operator(
                 "bdental4d.curvecutteradd", text="ADD CUTTER", icon="GP_SELECT_STROKES"
             )
+            row = Box.row()
             row.operator(
                 "bdental4d.curvecuttercut", text="CUT", icon="GP_MULTIFRAME_EDITING"
             )
 
         elif BDENTAL_4D_Props.Cutting_Tools_Types_Prop == "Curve Cutter 2":
             row = Box.row()
+            row.prop(BDENTAL_4D_Props, "CurveCutCloseMode", text="")
             row.operator(
                 "bdental4d.curvecutteradd2", text="ADD CUTTER", icon="GP_SELECT_STROKES"
             )
+            row = Box.row()
             row.operator(
                 "bdental4d.curvecutter2_shortpath",
                 text="CUT",
                 icon="GP_MULTIFRAME_EDITING",
             )
 
-        elif BDENTAL_4D_Props.Cutting_Tools_Types_Prop == "Square Cutting Tool":
+        elif BDENTAL_4D_Props.Cutting_Tools_Types_Prop == "Square Cutter":
 
             # Cutting mode column :
             row = Box.row()
@@ -285,8 +290,22 @@ class BDENTAL_4D_PT_MeshesTools_Panel(bpy.types.Panel):
             row = Box.row()
             row.operator("bdental4d.paint_cut", text="CUT")
 
+        if context.active_object:
+            if (
+                "BDENTAL4D_Curve_Cut" in context.active_object.name
+                and context.active_object.type == "CURVE"
+            ):
+
+                obj = context.active_object
+                row = Box.row()
+                row.prop(obj.data, "extrude", text="Extrude")
+                row.prop(obj.data, "offset", text="Offset")
+
         # Make BaseModel, survey, Blockout :
         layout.separator()
+        layout.label(
+            text="MODELS : [Base - Hollow - Survey - Blockout]", icon=yellow_point
+        )
         Box = layout.box()
         row = Box.row()
         row.alignment = "CENTER"
@@ -341,12 +360,45 @@ class BDENTAL_4D_PT_Guide(bpy.types.Panel):
 
         Box = layout.box()
         row = Box.row()
-        row.prop(BDENTAL_4D_Props, "TubeWidth")
-        row.prop(BDENTAL_4D_Props, "TubeCloseMode")
-        row = Box.row()
         row.operator("bdental4d.add_tube")
+        row.prop(BDENTAL_4D_Props, "TubeCloseMode", text="")
+
+        if context.active_object:
+            if (
+                "BDENTAL4D_Tube" in context.active_object.name
+                and context.active_object.type == "CURVE"
+            ):
+                obj = context.active_object
+                row = Box.row()
+                row.prop(obj.data, "bevel_depth", text="Radius")
+                row.prop(obj.data, "extrude", text="Extrude")
+                row.prop(obj.data, "offset", text="Offset")
+
         row = Box.row()
         row.operator("bdental4d.add_splint")
+
+        row = Box.row()
+        row.operator(
+            "bdental4d.splintcutteradd",
+            text="ADD SPLINT CUTTER",
+            icon="GP_SELECT_STROKES",
+        )
+        row.prop(BDENTAL_4D_Props, "CurveCutCloseMode", text="")
+        if context.active_object:
+            if (
+                "BDENTAL4D_Splint_Cut" in context.active_object.name
+                and context.active_object.type == "CURVE"
+            ):
+                obj = context.active_object
+                row = Box.row()
+                row.prop(obj.data, "bevel_depth", text="Radius")
+                row.prop(obj.data, "extrude", text="Extrude")
+                row.prop(obj.data, "offset", text="Offset")
+
+        row = Box.row()
+        row.operator(
+            "bdental4d.splintcuttercut", text="CUT", icon="GP_MULTIFRAME_EDITING"
+        )
 
 
 ####################################################################

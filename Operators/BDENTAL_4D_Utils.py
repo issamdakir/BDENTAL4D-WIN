@@ -1958,9 +1958,9 @@ def CuttingCurveAdd():
     )
     # Set cutting_tool name :
     CurveCutter = bpy.context.view_layer.objects.active
-    CurveCutter.name = "BDENTAL_4D_CuttingCurve_1"
+    CurveCutter.name = "BDENTAL4D_Curve_Cut1"
     curve = CurveCutter.data
-    curve.name = "BDENTAL_4D_CuttingCurve_1_Mesh"
+    curve.name = "BDENTAL4D_Curve_Cut1"
     bpy.context.scene.BDENTAL_4D_Props.CurveCutterNameProp = CurveCutter.name
 
     # CurveCutter settings :
@@ -1985,9 +1985,9 @@ def CuttingCurveAdd():
     bpy.context.scene.tool_settings.curve_paint_settings.use_offset_absolute = True
 
     # Add color material :
-    CurveCutterMat = bpy.data.materials.get("CurveCutterMat") or bpy.data.materials.new(
-        "CurveCutterMat"
-    )
+    CurveCutterMat = bpy.data.materials.get(
+        "BDENTAL4D_Curve_Cut1_Mat"
+    ) or bpy.data.materials.new("BDENTAL4D_Curve_Cut1_Mat")
     CurveCutterMat.diffuse_color = [0.1, 0.4, 1.0, 1.0]
     CurveCutterMat.roughness = 0.3
 
@@ -2018,9 +2018,9 @@ def AddTube(context, CuttingTarget):
     )
     # Set cutting_tool name :
     TubeObject = context.view_layer.objects.active
-    TubeObject.name = "BDENTAL4D-Tube"
+    TubeObject.name = "BDENTAL4D_Tube"
     TubeData = TubeObject.data
-    TubeData.name = "BDENTAL4D-Tube-Mesh"
+    TubeData.name = "BDENTAL4D_Tube"
 
     # Tube settings :
     bpy.ops.object.mode_set(mode="EDIT")
@@ -2042,7 +2042,9 @@ def AddTube(context, CuttingTarget):
     bpy.context.scene.tool_settings.curve_paint_settings.use_offset_absolute = True
 
     # Add color material :
-    TubeMat = bpy.data.materials.get("TubeMat") or bpy.data.materials.new("TubeMat")
+    TubeMat = bpy.data.materials.get("BDENTAL4D_Tube_Mat") or bpy.data.materials.new(
+        "BDENTAL4D_Tube_Mat"
+    )
     TubeMat.diffuse_color = [0.03, 0.20, 0.14, 1.0]  # [0.1, 0.4, 1.0, 1.0]
     TubeMat.roughness = 0.3
 
@@ -2117,9 +2119,9 @@ def CuttingCurveAdd2():
     )
     # Set cutting_tool name :
     CurveCutter = bpy.context.view_layer.objects.active
-    CurveCutter.name = "CuttingCurve"
+    CurveCutter.name = "BDENTAL4D_Curve_Cut2"
     curve = CurveCutter.data
-    curve.name = "CuttingCurveMesh"
+    curve.name = "BDENTAL4D_Curve_Cut2"
     bpy.context.scene.BDENTAL_4D_Props.CurveCutterNameProp = CurveCutter.name
     # Add Sphere :
     bpy.ops.mesh.primitive_uv_sphere_add(
@@ -2147,9 +2149,9 @@ def CuttingCurveAdd2():
     bpy.context.scene.tool_settings.curve_paint_settings.use_offset_absolute = True
 
     # Add color material :
-    CurveCutterMat = bpy.data.materials.get("CurveCutterMat") or bpy.data.materials.new(
-        "CurveCutterMat"
-    )
+    CurveCutterMat = bpy.data.materials.get(
+        "BDENTAL4D_Curve_Cut2_Mat"
+    ) or bpy.data.materials.new("BDENTAL4D_Curve_Cut2_Mat")
     CurveCutterMat.diffuse_color = [0.1, 0.4, 1.0, 1.0]
     CurveCutterMat.roughness = 0.3
 

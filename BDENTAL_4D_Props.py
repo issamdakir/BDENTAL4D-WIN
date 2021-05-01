@@ -403,7 +403,7 @@ class BDENTAL_4D_Props(bpy.types.PropertyGroup):
     Cutting_Tools_Types = [
         "Curve Cutter 1",
         "Curve Cutter 2",
-        "Square Cutting Tool",
+        "Square Cutter",
         "Paint Cutter",
     ]
     items = []
@@ -419,6 +419,18 @@ class BDENTAL_4D_Props(bpy.types.PropertyGroup):
     Cutting_Tools_Types_Prop: EnumProperty(
         items=items, description="Select a cutting tool", default="Curve Cutter 1"
     )
+
+    CurveCutCloseModeList = ["Open Curve", "Close Curve"]
+    items = []
+    for i in range(len(CurveCutCloseModeList)):
+        item = (
+            str(CurveCutCloseModeList[i]),
+            str(CurveCutCloseModeList[i]),
+            str(""),
+            int(i),
+        )
+        items.append(item)
+    CurveCutCloseMode: EnumProperty(items=items, description="", default="Close Curve")
 
     cutting_mode_list = ["Cut inner", "Keep inner"]
     items = []
@@ -436,6 +448,7 @@ class BDENTAL_4D_Props(bpy.types.PropertyGroup):
         item = (str(TubeCloseModeList[i]), str(TubeCloseModeList[i]), str(""), int(i))
         items.append(item)
     TubeCloseMode: EnumProperty(items=items, description="", default="Close Tube")
+
     BaseHeight: FloatProperty(
         description="Base Height ", default=10, step=1, precision=2
     )
