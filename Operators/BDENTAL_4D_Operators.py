@@ -1678,96 +1678,6 @@ class BDENTAL_4D_OT_MultiView(bpy.types.Operator):
 #######################################################################################
 ########################### Measurements : Operators ##############################
 #######################################################################################
-# if event.type == "R":
-#             # Add Right Or Point :
-#             if event.value == ("PRESS"):
-#                 color = (1, 0, 0, 1)  # red
-#                 CollName = self.CollName
-#                 name = "R_Or"
-#                 OldPoint = bpy.data.objects.get(name)
-#                 if OldPoint:
-#                     bpy.data.objects.remove(OldPoint)
-#                 NewPoint = AddMarkupPoint(name, color, CollName)
-#                 self.R_Or = NewPoint
-#                 bpy.ops.object.select_all(action="DESELECT")
-#                 self.Points = [
-#                     obj
-#                     for obj in bpy.context.scene.objects
-#                     if obj.name in self.PointsNames and not obj is self.R_Or
-#                 ]
-#                 self.Points.append(self.R_Or)
-
-#         if event.type == "L":
-#             # Add Left Or point :
-#             if event.value == ("PRESS"):
-#                 color = (1, 0, 0, 1)  # red
-#                 CollName = self.CollName
-#                 name = "L_Or"
-#                 OldPoint = bpy.data.objects.get(name)
-#                 if OldPoint:
-#                     bpy.data.objects.remove(OldPoint)
-#                 NewPoint = AddMarkupPoint(name, color, CollName)
-#                 self.L_Or = NewPoint
-#                 bpy.ops.object.select_all(action="DESELECT")
-#                 self.Points = [
-#                     obj
-#                     for obj in bpy.context.scene.objects
-#                     if obj.name in self.PointsNames and not obj is self.L_Or
-#                 ]
-#                 self.Points.append(self.L_Or)
-
-#         if event.shift and event.type == "R":
-#             # Add Right Po point :
-#             if event.value == ("PRESS"):
-#                 color = (1, 0, 0, 1)  # red
-#                 CollName = self.CollName
-#                 name = "R_Po"
-#                 OldPoint = bpy.data.objects.get(name)
-#                 if OldPoint:
-#                     bpy.data.objects.remove(OldPoint)
-#                 NewPoint = AddMarkupPoint(name, color, CollName)
-#                 self.R_Po = NewPoint
-#                 bpy.ops.object.select_all(action="DESELECT")
-#                 self.Points = [
-#                     obj
-#                     for obj in bpy.context.scene.objects
-#                     if obj.name in self.PointsNames and not obj is self.R_Po
-#                 ]
-#                 self.Points.append(self.R_Po)
-
-#         if event.shift and event.type == "L":
-#             # Add Left Po point :
-#             if event.value == ("PRESS"):
-#                 color = (1, 0, 0, 1)  # red
-#                 CollName = self.CollName
-#                 name = "L_Po"
-#                 OldPoint = bpy.data.objects.get(name)
-#                 if OldPoint:
-#                     bpy.data.objects.remove(OldPoint)
-#                 NewPoint = AddMarkupPoint(name, color, CollName)
-#                 self.L_Po = NewPoint
-#                 bpy.ops.object.select_all(action="DESELECT")
-#                 self.Points = [
-#                     obj
-#                     for obj in bpy.context.scene.objects
-#                     if obj.name in self.PointsNames and not obj is self.L_Po
-#                 ]
-#                 self.Points.append(self.L_Po)
-
-
-# def AddFrankfortPoint(PointsList, color, CollName):
-#     FrankfortPointsNames = ["R_Or", "L_Or", "R_Po", "L_Po"]
-#     if not PointsList:
-#         P = AddMarkupPoint(FrankfortPointsNames[0], color, CollName)
-#         return P
-#     if PointsList:
-#         CurrentPointsNames = [P.name for P in PointsList]
-#         P_Names = [P for P in FrankfortPointsNames if not P in CurrentPointsNames]
-#         if P_Names:
-#             P = AddMarkupPoint(P_Names[0], color, CollName)
-#             return P
-#     else:
-#         return None
 
 
 class BDENTAL_4D_OT_AddReferencePlanes(bpy.types.Operator):
@@ -1989,7 +1899,7 @@ class BDENTAL_4D_OT_AddMarkupPoint(bpy.types.Operator):
         size=4,
         subtype="COLOR",
     )
-    Markur_Diameter: FloatProperty(
+    Markup_Diameter: FloatProperty(
         description="Diameter", default=1, step=1, precision=2
     )
 
@@ -2006,7 +1916,7 @@ class BDENTAL_4D_OT_AddMarkupPoint(bpy.types.Operator):
             name=self.MarkupName,
             color=self.MarkupColor,
             loc=Co,
-            Diameter=self.Markur_Diameter,
+            Diameter=self.Markup_Diameter,
             CollName=self.CollName,
         )
 
@@ -3146,7 +3056,6 @@ class BDENTAL_4D_OT_AlignPoints(bpy.types.Operator):
 
     def IcpPipline(
         self,
-        context,
         SourceObj,
         TargetObj,
         SourceVidList,
@@ -3196,8 +3105,8 @@ class BDENTAL_4D_OT_AlignPoints(bpy.types.Operator):
                 SourceVcoList, TargetVcoList, VertsLimite=VertsLimite
             )
             MaxDist = max(DistList)
-
-            bpy.ops.wm.redraw_timer(context, type="DRAW_SWAP")
+            Override, area3D, space3D = CtxOverride(bpy.context)
+            bpy.ops.wm.redraw_timer(Override, type="DRAW_WIN_SWAP", iterations=1)
             #######################################################
             if MaxDist <= Precision:
                 self.ResultMessage = [
@@ -3234,7 +3143,6 @@ class BDENTAL_4D_OT_AlignPoints(bpy.types.Operator):
         if event.type == self.TargetChar:
             # Add Target Refference point :
             if event.value == ("PRESS"):
-                print("TargetVoxelMode : ", self.TargetVoxelMode)
                 if self.TargetVoxelMode:
                     Preffix = self.TargetObject.name[:5]
                     CursorToVoxelPoint(Preffix=Preffix, CursorMove=True)
@@ -3252,7 +3160,6 @@ class BDENTAL_4D_OT_AlignPoints(bpy.types.Operator):
         if event.type == self.SourceChar:
             # Add Source Refference point :
             if event.value == ("PRESS"):
-                print("SourceVoxelMode : ", self.SourceVoxelMode)
                 if self.SourceVoxelMode:
                     Preffix = self.SourceObject.name[:5]
                     CursorToVoxelPoint(Preffix=Preffix, CursorMove=True)
@@ -3290,7 +3197,7 @@ class BDENTAL_4D_OT_AlignPoints(bpy.types.Operator):
 
                 TargetObj = self.TargetObject
                 SourceObj = self.SourceObject
-                Override, area3D, space3D = CtxOverride(context)
+
                 #############################################
                 condition = (
                     len(self.TargetRefPoints) == len(self.SourceRefPoints)
@@ -3320,14 +3227,18 @@ class BDENTAL_4D_OT_AlignPoints(bpy.types.Operator):
                             TransformMatrix @ SourceRefP.matrix_world
                         )
 
+                    for i, SP in enumerate(self.SourceRefPoints):
+                        TP = self.TargetRefPoints[i]
+                        MidLoc = (SP.location + TP.location) / 2
+                        SP.location = TP.location = MidLoc
+
                     # Update scene :
                     context.view_layer.update()
                     for obj in [TargetObj, SourceObj]:
-                        obj.select_set(True)
-                        bpy.context.view_layer.objects.active = TargetObj
                         obj.update_tag()
-
-                    bpy.ops.wm.redraw_timer(Override, type="DRAW_SWAP")
+                    bpy.ops.wm.redraw_timer(
+                        self.FullOverride, type="DRAW_WIN_SWAP", iterations=1
+                    )
 
                     self.ResultMessage = []
                     if not self.TargetVoxelMode and not self.SourceVoxelMode:
@@ -3350,7 +3261,6 @@ class BDENTAL_4D_OT_AlignPoints(bpy.types.Operator):
                         )
 
                         self.IcpPipline(
-                            context=Override,
                             SourceObj=SourceObj,
                             TargetObj=TargetObj,
                             SourceVidList=SourceVidList,
@@ -3360,45 +3270,48 @@ class BDENTAL_4D_OT_AlignPoints(bpy.types.Operator):
                             Precision=0.0001,
                         )
 
-                    for obj in self.TotalRefPoints:
-                        bpy.data.objects.remove(obj)
+                    ##########################################################
+                    self.FullSpace3D.overlay.show_outline_selected = True
+                    self.FullSpace3D.overlay.show_object_origins = True
+                    self.FullSpace3D.overlay.show_annotation = True
+                    self.FullSpace3D.overlay.show_text = True
+                    self.FullSpace3D.overlay.show_extras = True
+                    self.FullSpace3D.overlay.show_floor = True
+                    self.FullSpace3D.overlay.show_axis_x = True
+                    self.FullSpace3D.overlay.show_axis_y = True
+                    ###########################################################
+                    for Name in self.visibleObjects:
+                        obj = bpy.data.objects.get(Name)
+                        if obj:
+                            obj.hide_set(False)
+
+                    bpy.ops.object.select_all(self.FullOverride, action="DESELECT")
+                    bpy.ops.wm.tool_set_by_id(self.FullOverride, name="builtin.select")
+                    bpy.context.scene.tool_settings.use_snap = False
+                    bpy.context.scene.cursor.location = (0, 0, 0)
+                    bpy.ops.screen.region_toggle(self.FullOverride, region_type="UI")
+
+                    if self.Solid:
+                        self.FullSpace3D.shading.background_color = (
+                            self.background_color
+                        )
+                        self.FullSpace3D.shading.background_type = self.background_type
+
+                    TargetObj = self.TargetObject
+                    SourceObj = self.SourceObject
+
+                    if self.TotalRefPoints:
+                        for RefP in self.TotalRefPoints:
+                            bpy.data.objects.remove(RefP)
 
                     AlignColl = bpy.data.collections.get("ALIGN POINTS")
                     if AlignColl:
                         bpy.data.collections.remove(AlignColl)
 
-                    Override, area3D, space3D = CtxOverride(context)
-                    ##########################################################
-                    space3D.overlay.show_outline_selected = True
-                    space3D.overlay.show_object_origins = True
-                    space3D.overlay.show_annotation = True
-                    space3D.overlay.show_text = True
-                    space3D.overlay.show_extras = True
-                    space3D.overlay.show_floor = True
-                    space3D.overlay.show_axis_x = True
-                    space3D.overlay.show_axis_y = True
-                    ###########################################################
-
-                    bpy.ops.object.hide_view_clear(Override)
-                    bpy.ops.object.select_all(Override, action="DESELECT")
-                    for obj in self.visibleObjects:
-                        obj.select_set(True)
-                        bpy.context.view_layer.objects.active = obj
-                    bpy.ops.object.hide_view_set(Override, unselected=True)
-                    bpy.ops.object.select_all(Override, action="DESELECT")
-                    bpy.ops.wm.tool_set_by_id(Override, name="builtin.select")
-                    bpy.context.scene.tool_settings.use_snap = False
-                    space3D.shading.background_color = self.background_color
-                    space3D.shading.background_type = self.background_type
                     BDENTAL_4D_Props = context.scene.BDENTAL_4D_Props
                     BDENTAL_4D_Props.AlignModalState = False
-                    bpy.context.scene.cursor.location = (0, 0, 0)
 
-                    for obj in [TargetObj, SourceObj]:
-                        obj.select_set(True)
-                        bpy.context.view_layer.objects.active = TargetObj
-
-                    bpy.ops.screen.screen_full_area(Override)
+                    bpy.ops.screen.screen_full_area(self.FullOverride)
 
                     if self.ResultMessage:
                         ShowMessageBox(
@@ -3416,10 +3329,35 @@ class BDENTAL_4D_OT_AlignPoints(bpy.types.Operator):
 
             if event.value == ("PRESS"):
 
+                ##########################################################
+                self.FullSpace3D.overlay.show_outline_selected = True
+                self.FullSpace3D.overlay.show_object_origins = True
+                self.FullSpace3D.overlay.show_annotation = True
+                self.FullSpace3D.overlay.show_text = True
+                self.FullSpace3D.overlay.show_extras = True
+                self.FullSpace3D.overlay.show_floor = True
+                self.FullSpace3D.overlay.show_axis_x = True
+                self.FullSpace3D.overlay.show_axis_y = True
+                ###########################################################
+                for Name in self.visibleObjects:
+                    obj = bpy.data.objects.get(Name)
+                    if obj:
+                        obj.hide_set(False)
+
+                bpy.ops.object.select_all(self.FullOverride, action="DESELECT")
+                bpy.ops.wm.tool_set_by_id(self.FullOverride, name="builtin.select")
+                bpy.context.scene.tool_settings.use_snap = False
+                bpy.context.scene.cursor.location = (0, 0, 0)
+                bpy.ops.screen.region_toggle(self.FullOverride, region_type="UI")
+
+                if self.Solid:
+                    self.FullSpace3D.shading.background_color = self.background_color
+                    self.FullSpace3D.shading.background_type = self.background_type
+
                 TargetObj = self.TargetObject
                 SourceObj = self.SourceObject
 
-                if self.TargetRefPoints:
+                if self.TotalRefPoints:
                     for RefP in self.TotalRefPoints:
                         bpy.data.objects.remove(RefP)
 
@@ -3427,38 +3365,10 @@ class BDENTAL_4D_OT_AlignPoints(bpy.types.Operator):
                 if AlignColl:
                     bpy.data.collections.remove(AlignColl)
 
-                Override, area3D, space3D = CtxOverride(context)
-                ##########################################################
-                space3D.overlay.show_outline_selected = True
-                space3D.overlay.show_object_origins = True
-                space3D.overlay.show_annotation = True
-                space3D.overlay.show_text = True
-                space3D.overlay.show_extras = True
-                space3D.overlay.show_floor = True
-                space3D.overlay.show_axis_x = True
-                space3D.overlay.show_axis_y = True
-                ###########################################################
-
-                bpy.ops.object.hide_view_clear(Override)
-                bpy.ops.object.select_all(Override, action="DESELECT")
-                for obj in self.visibleObjects:
-                    obj.select_set(True)
-                    bpy.context.view_layer.objects.active = obj
-                bpy.ops.object.hide_view_set(Override, unselected=True)
-                bpy.ops.object.select_all(Override, action="DESELECT")
-                bpy.ops.wm.tool_set_by_id(Override, name="builtin.select")
-                bpy.context.scene.tool_settings.use_snap = False
-                space3D.shading.background_color = self.background_color
-                space3D.shading.background_type = self.background_type
                 BDENTAL_4D_Props = context.scene.BDENTAL_4D_Props
                 BDENTAL_4D_Props.AlignModalState = False
-                bpy.context.scene.cursor.location = (0, 0, 0)
 
-                for obj in [TargetObj, SourceObj]:
-                    obj.select_set(True)
-                    bpy.context.view_layer.objects.active = TargetObj
-
-                bpy.ops.screen.screen_full_area(Override)
+                bpy.ops.screen.screen_full_area(self.FullOverride)
 
                 message = [
                     " The Align Operation was Cancelled!",
@@ -3512,16 +3422,30 @@ class BDENTAL_4D_OT_AlignPoints(bpy.types.Operator):
                     "INDIVIDUAL_ORIGINS"
                 )
                 bpy.ops.wm.tool_set_by_id(name="builtin.cursor")
-                bpy.ops.object.hide_view_set(unselected=True)
 
                 ###########################################################
-
                 self.TargetObject = bpy.context.active_object
                 self.SourceObject = [
                     obj
                     for obj in bpy.context.selected_objects
                     if not obj is self.TargetObject
                 ][0]
+
+                VisObj = bpy.context.visible_objects
+                self.visibleObjects = [obj.name for obj in VisObj]
+                for obj in VisObj:
+                    if not obj in [self.TargetObject, self.SourceObject]:
+                        obj.hide_set(True)
+                if bpy.context.space_data.shading.type == "SOLID":
+                    self.Solid = True
+                    self.background_type = (
+                        bpy.context.space_data.shading.background_type
+                    )
+                    bpy.context.space_data.shading.background_type = "VIEWPORT"
+                    self.background_color = tuple(
+                        bpy.context.space_data.shading.background_color
+                    )
+                    bpy.context.space_data.shading.background_color = (0.0, 0.0, 0.0)
 
                 self.TargetVoxelMode = self.TargetObject.name.startswith(
                     "BD"
@@ -3535,17 +3459,12 @@ class BDENTAL_4D_OT_AlignPoints(bpy.types.Operator):
 
                 self.TargetCounter = 0
                 self.SourceCounter = 0
-                self.visibleObjects = bpy.context.visible_objects.copy()
-                self.background_type = bpy.context.space_data.shading.background_type
-                bpy.context.space_data.shading.background_type = "VIEWPORT"
-                self.background_color = tuple(
-                    bpy.context.space_data.shading.background_color
-                )
-                bpy.context.space_data.shading.background_color = (0.0, 0.0, 0.0)
 
                 bpy.ops.screen.screen_full_area()
-                Override, area3D, space3D = CtxOverride(context)
-                # bpy.ops.object.select_all(action="DESELECT")
+                self.FullOverride, self.FullArea3D, self.FullSpace3D = CtxOverride(
+                    context
+                )
+
                 context.window_manager.modal_handler_add(self)
 
                 return {"RUNNING_MODAL"}
@@ -4038,169 +3957,166 @@ class BDENTAL_4D_OT_OcclusalPlane(bpy.types.Operator):
         if event.type == "R":
             # Add Right point :
             if event.value == ("PRESS"):
+                Override, area3D, space3D = CtxOverride(context)
                 color = (1, 0, 0, 1)  # red
                 CollName = self.CollName
                 name = "Right_Occlusal_Point"
                 OldPoint = bpy.data.objects.get(name)
                 if OldPoint:
                     bpy.data.objects.remove(OldPoint)
-                NewPoint = AddMarkupPoint(name, color, CollName)
+                loc = context.scene.cursor.location
+                NewPoint = AddMarkupPoint(name, color, loc, 1.2, CollName)
                 self.RightPoint = NewPoint
-                bpy.ops.object.select_all(action="DESELECT")
+                bpy.ops.object.select_all(Override, action="DESELECT")
                 self.OcclusalPoints = [
-                    obj
-                    for obj in bpy.context.scene.objects
-                    if obj.name.endswith("_Occlusal_Point")
-                    and not obj is self.RightPoint
+                    name
+                    for name in self.OcclusalPoints
+                    if not name == "Right_Occlusal_Point"
                 ]
-                self.OcclusalPoints.append(self.RightPoint)
+                self.OcclusalPoints.append(self.RightPoint.name)
 
         #########################################
         if event.type == "A":
             # Add Right point :
             if event.value == ("PRESS"):
+                Override, area3D, space3D = CtxOverride(context)
                 color = (0, 1, 0, 1)  # green
                 CollName = self.CollName
                 name = "Anterior_Occlusal_Point"
                 OldPoint = bpy.data.objects.get(name)
                 if OldPoint:
                     bpy.data.objects.remove(OldPoint)
-                NewPoint = AddMarkupPoint(name, color, CollName)
+                loc = context.scene.cursor.location
+                NewPoint = AddMarkupPoint(name, color, loc, 1.2, CollName)
                 self.AnteriorPoint = NewPoint
-                bpy.ops.object.select_all(action="DESELECT")
+                bpy.ops.object.select_all(Override, action="DESELECT")
+
                 self.OcclusalPoints = [
-                    obj
-                    for obj in bpy.context.scene.objects
-                    if obj.name.endswith("_Occlusal_Point")
-                    and not obj is self.AnteriorPoint
+                    name
+                    for name in self.OcclusalPoints
+                    if not name == "Anterior_Occlusal_Point"
                 ]
-                self.OcclusalPoints.append(self.AnteriorPoint)
+                self.OcclusalPoints.append(self.AnteriorPoint.name)
         #########################################
         if event.type == "L":
             # Add Right point :
             if event.value == ("PRESS"):
+                Override, area3D, space3D = CtxOverride(context)
                 color = (0, 0, 1, 1)  # blue
                 CollName = self.CollName
                 name = "Left_Occlusal_Point"
                 OldPoint = bpy.data.objects.get(name)
                 if OldPoint:
                     bpy.data.objects.remove(OldPoint)
-                NewPoint = AddMarkupPoint(name, color, CollName)
+                loc = context.scene.cursor.location
+                NewPoint = AddMarkupPoint(name, color, loc, 1.2, CollName)
                 self.LeftPoint = NewPoint
-                bpy.ops.object.select_all(action="DESELECT")
+                bpy.ops.object.select_all(Override, action="DESELECT")
                 self.OcclusalPoints = [
-                    obj
-                    for obj in bpy.context.scene.objects
-                    if obj.name.endswith("_Occlusal_Point")
-                    and not obj is self.LeftPoint
+                    name
+                    for name in self.OcclusalPoints
+                    if not name == "Left_Occlusal_Point"
                 ]
-                self.OcclusalPoints.append(self.LeftPoint)
+                self.OcclusalPoints.append(self.LeftPoint.name)
         #########################################
 
         elif event.type == ("DEL") and event.value == ("PRESS"):
-            print("active object : ", context.object)
-            print("Points list : ", self.OcclusalPoints)
 
             if self.OcclusalPoints:
-                P = self.OcclusalPoints.pop()
-                bpy.data.objects.remove(P)
-            print("Points list : ", self.OcclusalPoints)
-            # return {"PASS_THROUGH"}
+                name = self.OcclusalPoints.pop()
+                bpy.data.objects.remove(bpy.data.objects.get(name))
 
         elif event.type == "RET":
             if event.value == ("PRESS"):
 
-                Override, area3D, space3D = CtxOverride(context)
+                if not len(self.OcclusalPoints) == 3:
+                    message = ["3 points needed", "Please check Info and retry"]
+                    ShowMessageBox(message=message, icon="COLORSET_02_VEC")
 
-                OcclusalPlane = PointsToOcclusalPlane(
-                    Override,
-                    self.Target,
-                    self.RightPoint,
-                    self.AnteriorPoint,
-                    self.LeftPoint,
-                    color=(0.0, 0.0, 0.2, 0.7),
-                    subdiv=50,
-                )
-                self.OcclusalPoints = [
-                    obj
-                    for obj in bpy.context.scene.objects
-                    if obj.name.endswith("_Occlusal_Point")
-                ]
-                if self.OcclusalPoints:
-                    for P in self.OcclusalPoints:
-                        bpy.data.objects.remove(P)
-                ##########################################################
-                space3D.overlay.show_outline_selected = True
-                space3D.overlay.show_object_origins = True
-                space3D.overlay.show_annotation = True
-                space3D.overlay.show_text = True
-                space3D.overlay.show_extras = True
-                space3D.overlay.show_floor = True
-                space3D.overlay.show_axis_x = True
-                space3D.overlay.show_axis_y = True
-                ###########################################################
+                else:
+                    OcclusalPlane = PointsToOcclusalPlane(
+                        self.FullOverride,
+                        self.TargetObject,
+                        self.RightPoint,
+                        self.AnteriorPoint,
+                        self.LeftPoint,
+                        color=(0.0, 0.0, 0.2, 0.7),
+                        subdiv=50,
+                    )
 
-                bpy.ops.object.hide_view_clear(Override)
-                bpy.ops.object.select_all(action="DESELECT")
-                #                bpy.ops.object.select_all(Override, action="DESELECT")
-                for obj in self.visibleObjects:
-                    obj.select_set(True)
-                    bpy.context.view_layer.objects.active = obj
-                OcclusalPlane.select_set(True)
-                bpy.context.view_layer.objects.active = OcclusalPlane
-                bpy.ops.object.hide_view_set(Override, unselected=True)
-                bpy.ops.object.select_all(action="DESELECT")
-                #                bpy.ops.object.select_all(Override, action="DESELECT")
-                OcclusalPlane.select_set(True)
-                bpy.ops.wm.tool_set_by_id(Override, name="builtin.select")
-                bpy.context.scene.tool_settings.use_snap = False
-                space3D.shading.background_color = self.background_color
-                space3D.shading.background_type = self.background_type
+                    #########################################################
+                    self.FullSpace3D.overlay.show_outline_selected = True
+                    self.FullSpace3D.overlay.show_object_origins = True
+                    self.FullSpace3D.overlay.show_annotation = True
+                    self.FullSpace3D.overlay.show_text = True
+                    self.FullSpace3D.overlay.show_extras = True
+                    self.FullSpace3D.overlay.show_floor = True
+                    self.FullSpace3D.overlay.show_axis_x = True
+                    self.FullSpace3D.overlay.show_axis_y = True
+                    ##########################################################
+                    for Name in self.visibleObjects:
+                        obj = bpy.data.objects.get(Name)
+                        if obj:
+                            obj.hide_set(False)
 
-                bpy.context.scene.cursor.location = (0, 0, 0)
-                bpy.ops.screen.region_toggle(Override, region_type="UI")
-                bpy.ops.screen.screen_full_area(Override)
+                    bpy.ops.object.select_all(self.FullOverride, action="DESELECT")
+                    bpy.ops.wm.tool_set_by_id(self.FullOverride, name="builtin.select")
+                    bpy.context.scene.tool_settings.use_snap = False
+                    bpy.context.scene.cursor.location = (0, 0, 0)
+                    bpy.ops.screen.region_toggle(self.FullOverride, region_type="UI")
 
-                ##########################################################
+                    self.FullSpace3D.shading.background_color = self.background_color
+                    self.FullSpace3D.shading.background_type = self.background_type
 
-                finish = Tcounter()
+                    bpy.ops.screen.screen_full_area(self.FullOverride)
 
-                return {"FINISHED"}
+                    if self.OcclusalPoints:
+                        for name in self.OcclusalPoints:
+                            P = bpy.data.objects.get(name)
+                            if P:
+                                bpy.data.objects.remove(P)
+                    Coll = bpy.data.collections.get(self.CollName)
+                    if Coll:
+                        bpy.data.collections.remove(Coll)
+                    ##########################################################
+                    return {"FINISHED"}
 
         elif event.type == ("ESC"):
 
-            for P in self.OcclusalPoints:
-                bpy.data.objects.remove(P)
-
-            Override, area3D, space3D = CtxOverride(context)
             ##########################################################
-            space3D.overlay.show_outline_selected = True
-            space3D.overlay.show_object_origins = True
-            space3D.overlay.show_annotation = True
-            space3D.overlay.show_text = True
-            space3D.overlay.show_extras = True
-            space3D.overlay.show_floor = True
-            space3D.overlay.show_axis_x = True
-            space3D.overlay.show_axis_y = True
+            self.FullSpace3D.overlay.show_outline_selected = True
+            self.FullSpace3D.overlay.show_object_origins = True
+            self.FullSpace3D.overlay.show_annotation = True
+            self.FullSpace3D.overlay.show_text = True
+            self.FullSpace3D.overlay.show_extras = True
+            self.FullSpace3D.overlay.show_floor = True
+            self.FullSpace3D.overlay.show_axis_x = True
+            self.FullSpace3D.overlay.show_axis_y = True
             ###########################################################
+            for Name in self.visibleObjects:
+                obj = bpy.data.objects.get(Name)
+                if obj:
+                    obj.hide_set(False)
 
-            bpy.ops.object.hide_view_clear(Override)
-            bpy.ops.object.select_all(action="DESELECT")
-            #            bpy.ops.object.select_all(Override, action="DESELECT")
-            for obj in self.visibleObjects:
-                obj.select_set(True)
-                bpy.context.view_layer.objects.active = obj
-            bpy.ops.object.hide_view_set(Override, unselected=True)
-            bpy.ops.object.select_all(action="DESELECT")
-            #            bpy.ops.object.select_all(Override, action="DESELECT")
-            bpy.ops.wm.tool_set_by_id(Override, name="builtin.select")
+            bpy.ops.object.select_all(self.FullOverride, action="DESELECT")
+            bpy.ops.wm.tool_set_by_id(self.FullOverride, name="builtin.select")
             bpy.context.scene.tool_settings.use_snap = False
-            space3D.shading.background_color = self.background_color
-            space3D.shading.background_type = self.background_type
-
             bpy.context.scene.cursor.location = (0, 0, 0)
-            bpy.ops.screen.region_toggle(Override, region_type="UI")
-            bpy.ops.screen.screen_full_area(Override)
+            bpy.ops.screen.region_toggle(self.FullOverride, region_type="UI")
+
+            self.FullSpace3D.shading.background_color = self.background_color
+            self.FullSpace3D.shading.background_type = self.background_type
+
+            bpy.ops.screen.screen_full_area(self.FullOverride)
+
+            if self.OcclusalPoints:
+                for name in self.OcclusalPoints:
+                    P = bpy.data.objects.get(name)
+                    if P:
+                        bpy.data.objects.remove(P)
+            Coll = bpy.data.collections.get(self.CollName)
+            if Coll:
+                bpy.data.collections.remove(Coll)
 
             message = [
                 " The Occlusal Plane Operation was Cancelled!",
@@ -4226,9 +4142,6 @@ class BDENTAL_4D_OT_OcclusalPlane(bpy.types.Operator):
 
         else:
 
-            self.Target = context.active_object
-            bpy.context.scene.tool_settings.snap_elements = {"FACE"}
-
             if context.space_data.type == "VIEW_3D":
 
                 # Prepare scene  :
@@ -4248,26 +4161,30 @@ class BDENTAL_4D_OT_OcclusalPlane(bpy.types.Operator):
                     "INDIVIDUAL_ORIGINS"
                 )
                 bpy.ops.wm.tool_set_by_id(name="builtin.cursor")
-                bpy.ops.object.hide_view_set(unselected=True)
 
                 ###########################################################
                 self.TargetObject = bpy.context.active_object
+                VisObj = bpy.context.visible_objects
+                self.visibleObjects = [obj.name for obj in VisObj]
 
-                self.TargetPoints = []
-
-                self.visibleObjects = bpy.context.visible_objects.copy()
+                for obj in VisObj:
+                    if obj is not self.TargetObject:
+                        obj.hide_set(True)
+                self.Background = bpy.context.space_data.shading.type
+                bpy.context.space_data.shading.type = "SOLID"
                 self.background_type = bpy.context.space_data.shading.background_type
                 bpy.context.space_data.shading.background_type = "VIEWPORT"
                 self.background_color = tuple(
                     bpy.context.space_data.shading.background_color
                 )
                 bpy.context.space_data.shading.background_color = (0.0, 0.0, 0.0)
-
-                bpy.ops.screen.screen_full_area()
-                Override, area3D, space3D = CtxOverride(context)
-                bpy.ops.screen.region_toggle(Override, region_type="UI")
+                bpy.ops.screen.region_toggle(region_type="UI")
                 bpy.ops.object.select_all(action="DESELECT")
-                #                bpy.ops.object.select_all(Override, action="DESELECT")
+                bpy.ops.screen.screen_full_area()
+                self.FullOverride, self.FullArea3D, self.FullSpace3D = CtxOverride(
+                    context
+                )
+
                 context.window_manager.modal_handler_add(self)
 
                 return {"RUNNING_MODAL"}

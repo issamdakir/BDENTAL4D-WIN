@@ -136,15 +136,11 @@ def CleanScanData(Preffix):
 
 
 def CtxOverride(context):
-    Override = context.copy()
     area3D = [area for area in context.screen.areas if area.type == "VIEW_3D"][0]
     space3D = [space for space in area3D.spaces if space.type == "VIEW_3D"][0]
     region3D = [reg for reg in area3D.regions if reg.type == "WINDOW"][0]
-    Override["area"], Override["space_data"], Override["region"] = (
-        area3D,
-        space3D,
-        region3D,
-    )
+
+    Override = {"area": area3D, "space_data": space3D, "ragion": region3D}
     return Override, area3D, space3D
 
 
