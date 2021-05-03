@@ -667,6 +667,8 @@ class BDENTAL_4D_PT_Measurements(bpy.types.Panel):
                 row.label(text=line)
         row = Box.row()
         row.operator("bdental4d.ctvolume_orientation")
+        row = Box.row()
+        row.operator("bdental4d.drawmovements")
 
 
 class BDENTAL_4D_PT_Waxup(bpy.types.Panel):

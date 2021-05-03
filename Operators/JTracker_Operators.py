@@ -7,6 +7,14 @@ import pickle
 import glob
 import threading
 
+from scipy.signal import find_peaks
+from scipy import signal
+
+import gpu
+from gpu_extras.batch import batch_for_shader
+import bgl
+import blf
+
 import cv2
 import cv2.aruco as aruco
 
@@ -131,9 +139,13 @@ class BDENTAL_4D_OT_AddBoards(bpy.types.Operator):
 
         Type = "PLAIN_AXES"
         radius = 10
-        AddEmpty(Type, "RightCond", (-50, 47, -76), radius, CollName="EmptysColl")
-        AddEmpty(Type, "LeftCond", (50, 47, -76), radius, CollName="EmptysColl")
-        AddEmpty(Type, "IncisialPoint", (0, -3, 0), radius, CollName="EmptysColl")
+        AddEmpty(
+            Type, "Right Condyle", (-50, 47, -76), radius, CollName="Emptys Collection"
+        )
+        AddEmpty(
+            Type, "Left Condyle", (50, 47, -76), radius, CollName="Emptys Collection"
+        )
+        AddEmpty(Type, "Incisal", (0, -3, 0), radius, CollName="Emptys Collection")
         bpy.ops.object.select_all(action="DESELECT")
 
         LowMarker = bpy.data.objects["LowMarker"]
@@ -1013,6 +1025,73 @@ class BDENTAL_4D_OT_DrawPath(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class BDENTAL_4D_OT_DrawMovements(bpy.types.Operator):
+    """ Draw Emptys movements """
+
+    bl_idname = "bdental4d.drawmovements"
+    bl_label = "Draw Movements"
+
+    def execute(self, context):
+        ProtrusionColor = [0, 0, 1, 1]
+        RightColor = [1.0, 0.0, 0.9, 1.0]
+        LeftColor = [1.0, 0.7, 0.0, 1.000000]
+        OpenColor = [1, 0, 0, 1]
+
+        CollName = "Mandibular Movements"
+        IP = bpy.data.objects.get("Incisal")
+        RCP = bpy.data.objects.get("Right Condyle")
+        LCP = bpy.data.objects.get("Left Condyle")
+        if not (IP and RCP and LCP):
+            message = [
+                " Please ensure Incisal, Right Condyle and Left Condyle",
+                "Emptys are present in Emptys Collection",
+            ]
+            ShowMessageBox(message=message, icon="COLORSET_01_VEC")
+            return {"CANCELLED"}
+
+        PointCouplesList = GetPeakPointCouples(IP, RCP, LCP, Dist=50)
+
+        for Couple in PointCouplesList:
+            P0_info = Couple[0]
+            P1_info = Couple[1]
+            P0 = bpy.data.objects.get(P0_info[0])
+            P1 = bpy.data.objects.get(P1_info[0])
+            if not P0:
+                P0 = AddMarkupPoint(
+                    name=P0_info[0],
+                    color=(0, 0, 0, 1),
+                    loc=P0_info[1],
+                    Diameter=0.3,
+                    CollName=CollName,
+                )
+            if not P1:
+                P1 = AddMarkupPoint(
+                    name=P1_info[0],
+                    color=(0, 0, 0, 1),
+                    loc=P1_info[1],
+                    Diameter=0.3,
+                    CollName=CollName,
+                )
+            SegmentName = f"{P0_info[0]} (Segment)"
+            if "Protrusion" in SegmentName:
+                SegmentColor = ProtrusionColor
+            elif "Right" in SegmentName:
+                SegmentColor = RightColor
+            elif "Left" in SegmentName:
+                SegmentColor = LeftColor
+            elif "Open" in SegmentName:
+                SegmentColor = OpenColor
+
+            AddHookedSegment(
+                Points=[P0, P1],
+                Name=SegmentName,
+                color=SegmentColor,
+                thikness=0.2,
+                CollName=CollName,
+            )
+        return {"FINISHED"}
+
+
 #################################################################################################
 # Registration :
 #################################################################################################
@@ -1026,6 +1105,7 @@ classes = [
     BDENTAL_4D_OT_DataReader,
     BDENTAL_4D_OT_SmoothKeyframes,
     BDENTAL_4D_OT_DrawPath,
+    BDENTAL_4D_OT_DrawMovements,
 ]
 
 

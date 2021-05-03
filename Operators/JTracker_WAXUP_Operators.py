@@ -3,6 +3,11 @@ import mathutils
 import cv2
 from cv2 import aruco
 
+import gpu
+from gpu_extras.batch import batch_for_shader
+import bgl
+import blf
+
 from .BDENTAL_4D_Utils import *
 
 #######################################################################################

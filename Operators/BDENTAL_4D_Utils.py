@@ -9,6 +9,8 @@ from time import sleep, perf_counter as Tcounter
 from queue import Queue
 from importlib import reload
 from bpy.app.handlers import persistent
+from scipy.signal import find_peaks
+from scipy import signal
 
 
 # Blender Imports :
@@ -16,6 +18,10 @@ import bpy
 import bmesh
 import mathutils
 from mathutils import Matrix, Vector, Euler, kdtree, geometry as Geo
+import gpu
+from gpu_extras.batch import batch_for_shader
+import bgl
+import blf
 
 import SimpleITK as sitk
 import vtk
@@ -3201,6 +3207,257 @@ def CursorToVoxelPoint(Preffix, CursorMove=False):
 #################################################################################
 # JTrack utils
 #################################################################################
+def GetEmptyMovementsArray(EmptyName, FrameStart=None, FrameEnd=None):
+
+    Obj = bpy.data.objects.get(EmptyName)
+    if Obj:
+        if not FrameStart:
+            FrameStart = Obj.motion_path.frame_start
+        if not FrameEnd:
+            FrameEnd = Obj.motion_path.frame_end
+
+        Points = Obj.motion_path.points
+        PointsCoordsList = []
+        for F in range(FrameStart, FrameEnd):
+            PointsCoordsList.append(list(Points[F].co))
+
+        return np.array(PointsCoordsList)
+    else:
+        print(f"No object named {EmptyName}")
+        return None
+
+
+def GetPeakPointCouples(IP, RCP, LCP, Dist=50):
+
+    if bpy.context.scene.render.fps >= 40:
+        DIST = 100
+    else:
+        DIST = 50
+
+    LC_Array = GetEmptyMovementsArray(EmptyName=LCP.name)
+    LC_X_Array, LC_Y_Array, LC_Z_Array = (
+        LC_Array[:, 0],
+        LC_Array[:, 1],
+        LC_Array[:, 2],
+    )
+
+    RC_Array = GetEmptyMovementsArray(EmptyName=RCP.name)
+    RC_X_Array, RC_Y_Array, RC_Z_Array = (
+        RC_Array[:, 0],
+        RC_Array[:, 1],
+        RC_Array[:, 2],
+    )
+
+    IP_Array = GetEmptyMovementsArray(EmptyName=IP.name)
+    IP_X_Array, IP_Y_Array, IP_Z_Array = IP_Array[:, 0], IP_Array[:, 1], IP_Array[:, 2]
+
+    IP_X_Min, IP_Y_Min, IP_Z_Min = np.min(IP_Array, axis=0)
+    IP_X_Max, IP_Y_Max, IP_Z_Max = np.max(IP_Array, axis=0)
+    IP_X_Averrage, IP_Y_Averrage, IP_Z_Averrage = np.mean(IP_Array, axis=0)
+
+    ###################################################################################
+    # PEAKS
+    ###################################################################################
+    peaksX_Right, _ = find_peaks(
+        -IP_X_Array, height=(-IP_X_Min + IP_X_Min / 5, -IP_X_Min), distance=DIST
+    )
+    peaksX_Left, _ = find_peaks(
+        IP_X_Array, height=(IP_X_Max - IP_X_Max / 5, IP_X_Max), distance=DIST
+    )
+    peaksY_Protrusion, _ = find_peaks(
+        -IP_Y_Array, height=(-IP_Y_Min + IP_Y_Min / 40, -IP_Y_Min), distance=DIST
+    )
+    peaksY_Open, _ = find_peaks(
+        IP_Y_Array, height=(IP_Y_Max + IP_Y_Max / 40, IP_Y_Max), distance=DIST
+    )
+    peaksZ_Open, _ = find_peaks(
+        -IP_Z_Array, height=(-IP_Z_Min + IP_Z_Min / 40, -IP_Z_Min), distance=DIST
+    )
+    peaksZ_Central, _ = find_peaks(
+        IP_Z_Array, height=(IP_Z_Max + IP_Z_Max / 40, IP_Z_Max), distance=DIST
+    )
+
+    ###################################################################################
+    # POINTS
+    ###################################################################################
+
+    PointsList = []
+
+    # CENTRAL : ##################################################
+
+    IP_Central = [
+        np.mean(IP_X_Array[peaksZ_Central]),
+        np.mean(IP_Y_Array[peaksZ_Central]),
+        np.mean(IP_Z_Array[peaksZ_Central]),
+    ]
+
+    RC_Central = [
+        np.mean(RC_X_Array[peaksZ_Central]),
+        np.mean(RC_Y_Array[peaksZ_Central]),
+        np.mean(RC_Z_Array[peaksZ_Central]),
+    ]
+
+    LC_Central = [
+        np.mean(LC_X_Array[peaksZ_Central]),
+        np.mean(LC_Y_Array[peaksZ_Central]),
+        np.mean(LC_Z_Array[peaksZ_Central]),
+    ]
+
+    # PROTRUSION : ###################################
+
+    IP_Protrusion = [
+        np.mean(IP_X_Array[peaksY_Protrusion]),
+        np.mean(IP_Y_Array[peaksY_Protrusion]),
+        np.mean(IP_Z_Array[peaksY_Protrusion]),
+    ]
+
+    RC_Protrusion = [
+        np.mean(RC_X_Array[peaksY_Protrusion]),
+        np.mean(RC_Y_Array[peaksY_Protrusion]),
+        np.mean(RC_Z_Array[peaksY_Protrusion]),
+    ]
+
+    LC_Protrusion = [
+        np.mean(LC_X_Array[peaksY_Protrusion]),
+        np.mean(LC_Y_Array[peaksY_Protrusion]),
+        np.mean(LC_Z_Array[peaksY_Protrusion]),
+    ]
+
+    PointsList.append([("IP-Protrusion", IP_Protrusion), ("IP_Central", IP_Central)])
+    PointsList.append([("RC-Protrusion", RC_Protrusion), ("RC_Central", RC_Central)])
+    PointsList.append([("LC-Protrusion", LC_Protrusion), ("LC_Central", LC_Central)])
+
+    # LATERAL RIGHT : ###################################
+
+    IP_Lateral_Right = [
+        np.mean(IP_X_Array[peaksX_Right]),
+        np.mean(IP_Y_Array[peaksX_Right]),
+        np.mean(IP_Z_Array[peaksX_Right]),
+    ]
+
+    RC_Lateral_Right = [
+        np.mean(RC_X_Array[peaksX_Right]),
+        np.mean(RC_Y_Array[peaksX_Right]),
+        np.mean(RC_Z_Array[peaksX_Right]),
+    ]
+
+    LC_Lateral_Right = [
+        np.mean(LC_X_Array[peaksX_Right]),
+        np.mean(LC_Y_Array[peaksX_Right]),
+        np.mean(LC_Z_Array[peaksX_Right]),
+    ]
+
+    PointsList.append(
+        [("IP_Lateral-Right", IP_Lateral_Right), ("IP_Central", IP_Central)]
+    )
+    PointsList.append(
+        [("RC_Lateral-Right", RC_Lateral_Right), ("RC_Central", RC_Central)]
+    )
+    PointsList.append(
+        [("LC_Lateral-Right", LC_Lateral_Right), ("LC_Central", LC_Central)]
+    )
+
+    # LATERAL LEFT : ###################################
+
+    IP_Lateral_Left = [
+        np.mean(IP_X_Array[peaksX_Left]),
+        np.mean(IP_Y_Array[peaksX_Left]),
+        np.mean(IP_Z_Array[peaksX_Left]),
+    ]
+
+    RC_Lateral_Left = [
+        np.mean(RC_X_Array[peaksX_Left]),
+        np.mean(RC_Y_Array[peaksX_Left]),
+        np.mean(RC_Z_Array[peaksX_Left]),
+    ]
+
+    LC_Lateral_Left = [
+        np.mean(LC_X_Array[peaksX_Left]),
+        np.mean(LC_Y_Array[peaksX_Left]),
+        np.mean(LC_Z_Array[peaksX_Left]),
+    ]
+
+    PointsList.append(
+        [("IP_Lateral-Left", IP_Lateral_Left), ("IP_Central", IP_Central)]
+    )
+    PointsList.append(
+        [("RC_Lateral-Left", RC_Lateral_Left), ("RC_Central", RC_Central)]
+    )
+    PointsList.append(
+        [("LC_Lateral-Left", LC_Lateral_Left), ("LC_Central", LC_Central)]
+    )
+
+    # MAXIMUM OPENING : ###################################
+
+    IP_Max_Open = [
+        np.mean(IP_X_Array[peaksY_Open]),
+        np.mean(IP_Y_Array[peaksY_Open]),
+        np.mean(IP_Z_Array[peaksY_Open]),
+    ]
+
+    RC_Max_Open = [
+        np.mean(RC_X_Array[peaksY_Open]),
+        np.mean(RC_Y_Array[peaksY_Open]),
+        np.mean(RC_Z_Array[peaksY_Open]),
+    ]
+
+    LC_Max_Open = [
+        np.mean(LC_X_Array[peaksY_Open]),
+        np.mean(LC_Y_Array[peaksY_Open]),
+        np.mean(LC_Z_Array[peaksY_Open]),
+    ]
+
+    PointsList.append([("IP_Max-Open", IP_Max_Open), ("IP_Central", IP_Central)])
+    PointsList.append([("RC_Max-Open", RC_Max_Open), ("RC_Central", RC_Central)])
+    PointsList.append([("LC_Max-Open", LC_Max_Open), ("LC_Central", LC_Central)])
+
+    return PointsList
+
+
+def AddHookedSegment(Points, Name, color, thikness, CollName=None):
+    bpy.ops.curve.primitive_bezier_curve_add(
+        radius=1, enter_editmode=False, align="CURSOR"
+    )
+    bpy.ops.object.mode_set(mode="OBJECT")
+    Segment = bpy.context.view_layer.objects.active
+    Segment.name = Name
+    Segment.data.name = Name
+
+    # Add color material :
+    SegmentMat = bpy.data.materials.get(f"{Name}_Mat") or bpy.data.materials.new(
+        f"{Name}_Mat"
+    )
+    SegmentMat.diffuse_color = color
+    Segment.active_material = SegmentMat
+
+    SegmentPoints = Segment.data.splines[0].bezier_points[:]
+    SegmentPoints[0].co = Segment.matrix_world.inverted() @ Points[0].location
+    SegmentPoints[1].co = Segment.matrix_world.inverted() @ Points[1].location
+
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.curve.select_all(action="SELECT")
+    bpy.ops.curve.handle_type_set(type="VECTOR")
+    bpy.context.object.data.bevel_depth = thikness / 2
+
+    # Hook Segment to spheres
+    for i, P in enumerate(Points):
+        bpy.ops.object.mode_set(mode="OBJECT")
+        bpy.ops.object.select_all(action="DESELECT")
+        P.select_set(True)
+        Segment.select_set(True)
+        bpy.context.view_layer.objects.active = Segment
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.curve.select_all(action="DESELECT")
+        SegmentPoints = Segment.data.splines[0].bezier_points[:]
+        SegmentPoints[i].select_control_point = True
+        bpy.ops.object.hook_add_selob(use_bone=False)
+
+    bpy.ops.object.mode_set(mode="OBJECT")
+    bpy.ops.object.select_all(action="DESELECT")
+    Segment.hide_select = True
+    MoveToCollection(Segment, CollName)
+
+
 # Add Emptys
 def AddEmpty(type, name, location, radius, CollName=None):
     bpy.ops.object.empty_add(type=type, radius=radius, location=location)
@@ -3209,3 +3466,54 @@ def AddEmpty(type, name, location, radius, CollName=None):
     if CollName:
         MoveToCollection(Empty, CollName)
     return Empty
+
+
+###############################################################
+# GPU, Blf
+##########################################################
+def AddGpuPoints(PcoList, colors, Thikness):
+    def draw(Thikness):
+        bgl.glLineWidth(Thikness)
+        shader.bind()
+        batch.draw(shader)
+        bgl.glLineWidth(1)
+
+    shader = gpu.shader.from_builtin("3D_SMOOTH_COLOR")
+    batch = batch_for_shader(shader, "POINTS", {"pos": PcoList, "color": colors})
+    _Handler = bpy.types.SpaceView3D.draw_handler_add(
+        draw, (Thikness,), "WINDOW", "POST_VIEW"
+    )
+
+    for area in bpy.context.window.screen.areas:
+        if area.type == "VIEW_3D":
+            area.tag_redraw()
+
+    return _Handler
+
+
+def Add_2D_BlfText(
+    Font_Path, color=[1.0, 0.1, 0.0, 1.0], horiz=20, vert=40, size=50, text="BDENTAL-4D"
+):
+
+    font_id = 0
+
+    def draw_callback_px(self, context):
+
+        blf.color(font_id, color[0], color[1], color[2], color[3])
+        blf.position(font_id, horiz, vert, 0)
+        blf.size(font_id, size, 72)
+        blf.draw(font_id, text)
+
+    if Font_Path:
+        if os.path.exists(Font_Path):
+            font_id = blf.load(Font_Path)
+
+    _Handler = bpy.types.SpaceView3D.draw_handler_add(
+        draw_callback_px, (None, None), "WINDOW", "POST_PIXEL"
+    )  # 2D :'POST_PIXEL' | 3D :'POST_VIEW'
+
+    for area in bpy.context.window.screen.areas:
+        if area.type == "VIEW_3D":
+            area.tag_redraw()
+
+    return _Handler
