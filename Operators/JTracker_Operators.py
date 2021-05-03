@@ -6,6 +6,28 @@ import numpy as np
 import pickle
 import glob
 import threading
+import matplotlib.pyplot as plt
+import matplotlib
+import matplotlib.gridspec as gridspec
+from matplotlib.ticker import AutoMinorLocator, MultipleLocator
+from mathutils import Vector
+
+
+from PyQt5.QtWidgets import (
+    QWidget,
+    QApplication,
+    QMainWindow,
+    QVBoxLayout,
+    QScrollArea,
+)
+
+from matplotlib.backends.backend_qt5agg import (
+    FigureCanvasQTAgg as FigCanvas,
+    NavigationToolbar2QT as NabToolbar,
+)
+
+# Make sure that we are using QT5
+matplotlib.use("Qt5Agg")
 
 from scipy.signal import find_peaks
 from scipy import signal
@@ -21,6 +43,7 @@ import cv2.aruco as aruco
 # Addon Imports :
 from .BDENTAL_4D_Utils import *
 
+addon_dir = dirname(dirname(abspath(__file__)))
 
 #######################################################################################
 ########################### BDJawTracker Operators ##############################
@@ -149,7 +172,7 @@ class BDENTAL_4D_OT_AddBoards(bpy.types.Operator):
         bpy.ops.object.select_all(action="DESELECT")
 
         LowMarker = bpy.data.objects["LowMarker"]
-        Coll = bpy.data.collections.get("EmptysColl")
+        Coll = bpy.data.collections.get("Emptys Collection")
         CollObjects = Coll.objects
         for obj in CollObjects:
             obj.parent = LowMarker
@@ -1092,6 +1115,25 @@ class BDENTAL_4D_OT_DrawMovements(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class BDENTAL_4D_OT_RepportPlot(bpy.types.Operator):
+    """ Plot JTrack Repport """
+
+    bl_idname = "bdental4d.repport_plot"
+    bl_label = "SHOW REPPORT"
+
+    def execute(self, context):
+        ImgFolder = join(addon_dir, "Resources", "Images")
+        fig = JTrackRepportPlot(ImgFolder)
+        app = QApplication.instance()
+        if not app:
+            app = QApplication(sys.argv)
+
+        window = MyApp(fig)
+        window.initUI()
+        app.exec_()
+        return {"FINISHED"}
+
+
 #################################################################################################
 # Registration :
 #################################################################################################
@@ -1106,6 +1148,7 @@ classes = [
     BDENTAL_4D_OT_SmoothKeyframes,
     BDENTAL_4D_OT_DrawPath,
     BDENTAL_4D_OT_DrawMovements,
+    BDENTAL_4D_OT_RepportPlot,
 ]
 
 

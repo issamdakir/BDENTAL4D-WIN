@@ -631,9 +631,15 @@ class BDENTAL_4D_PT_JawTrack(bpy.types.Panel):
             row.alert = True
             row.alignment = "CENTER"
             row.label(text="LowMarker not found")
-        row.operator
+
+        layout.separator()
+        layout.label(text="JTRACK MOVEMENTS DISPLAY :", icon=yellow_point)
+        Box = layout.box()
         row = Box.row()
         row.operator("bdental4d.drawpath")
+        row.operator("bdental4d.drawmovements")
+        row = Box.row()
+        row.operator("bdental4d.repport_plot")
 
 
 class BDENTAL_4D_PT_Measurements(bpy.types.Panel):
@@ -667,8 +673,6 @@ class BDENTAL_4D_PT_Measurements(bpy.types.Panel):
                 row.label(text=line)
         row = Box.row()
         row.operator("bdental4d.ctvolume_orientation")
-        row = Box.row()
-        row.operator("bdental4d.drawmovements")
 
 
 class BDENTAL_4D_PT_Waxup(bpy.types.Panel):

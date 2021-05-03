@@ -9,6 +9,29 @@ from time import sleep, perf_counter as Tcounter
 from queue import Queue
 from importlib import reload
 from bpy.app.handlers import persistent
+
+
+import matplotlib.pyplot as plt
+import matplotlib
+import matplotlib.gridspec as gridspec
+from matplotlib.ticker import AutoMinorLocator, MultipleLocator
+
+from PyQt5.QtWidgets import (
+    QWidget,
+    QApplication,
+    QMainWindow,
+    QVBoxLayout,
+    QScrollArea,
+)
+
+from matplotlib.backends.backend_qt5agg import (
+    FigureCanvasQTAgg as FigCanvas,
+    NavigationToolbar2QT as NabToolbar,
+)
+
+# Make sure that we are using QT5
+matplotlib.use("Qt5Agg")
+
 from scipy.signal import find_peaks
 from scipy import signal
 
@@ -3207,6 +3230,850 @@ def CursorToVoxelPoint(Preffix, CursorMove=False):
 #################################################################################
 # JTrack utils
 #################################################################################
+def JTrackRepportPlot(ImgFolder):
+
+    IP_CP_X, IP_CP_Y, IP_CP_Z = bpy.data.objects["IP_Central"].location
+    LC_CP_X, LC_CP_Y, LC_CP_Z = bpy.data.objects["LC_Central"].location
+    RC_CP_X, RC_CP_Y, RC_CP_Z = bpy.data.objects["RC_Central"].location
+
+    IP_LL_X, IP_LL_Y, IP_LL_Z = bpy.data.objects["IP_Lateral-Left"].location - Vector(
+        (IP_CP_X, IP_CP_Y, IP_CP_Z)
+    )
+    IP_LR_X, IP_LR_Y, IP_LR_Z = bpy.data.objects["IP_Lateral-Right"].location - Vector(
+        (IP_CP_X, IP_CP_Y, IP_CP_Z)
+    )
+    IP_MO_X, IP_MO_Y, IP_MO_Z = bpy.data.objects["IP_Max-Open"].location - Vector(
+        (IP_CP_X, IP_CP_Y, IP_CP_Z)
+    )
+    IP_PP_X, IP_PP_Y, IP_PP_Z = bpy.data.objects["IP-Protrusion"].location - Vector(
+        (IP_CP_X, IP_CP_Y, IP_CP_Z)
+    )
+
+    LC_LL_X, LC_LL_Y, LC_LL_Z = bpy.data.objects["LC_Lateral-Left"].location - Vector(
+        (LC_CP_X, LC_CP_Y, LC_CP_Z)
+    )
+    LC_LR_X, LC_LR_Y, LC_LR_Z = bpy.data.objects["LC_Lateral-Right"].location - Vector(
+        (LC_CP_X, LC_CP_Y, LC_CP_Z)
+    )
+    LC_MO_X, LC_MO_Y, LC_MO_Z = bpy.data.objects["LC_Max-Open"].location - Vector(
+        (LC_CP_X, LC_CP_Y, LC_CP_Z)
+    )
+    LC_PP_X, LC_PP_Y, LC_PP_Z = bpy.data.objects["LC-Protrusion"].location - Vector(
+        (LC_CP_X, LC_CP_Y, LC_CP_Z)
+    )
+
+    RC_LL_X, RC_LL_Y, RC_LL_Z = bpy.data.objects["RC_Lateral-Left"].location - Vector(
+        (RC_CP_X, RC_CP_Y, RC_CP_Z)
+    )
+    RC_LR_X, RC_LR_Y, RC_LR_Z = bpy.data.objects["RC_Lateral-Right"].location - Vector(
+        (RC_CP_X, RC_CP_Y, RC_CP_Z)
+    )
+    RC_MO_X, RC_MO_Y, RC_MO_Z = bpy.data.objects["RC_Max-Open"].location - Vector(
+        (RC_CP_X, RC_CP_Y, RC_CP_Z)
+    )
+    RC_PP_X, RC_PP_Y, RC_PP_Z = bpy.data.objects["RC-Protrusion"].location - Vector(
+        (RC_CP_X, RC_CP_Y, RC_CP_Z)
+    )
+
+    LC_Array = GetEmptyMovementsArray(EmptyName="Left Condyle")
+    LC_X_Array, LC_Y_Array, LC_Z_Array = (
+        LC_Array[:, 0] - LC_CP_X,
+        LC_Array[:, 1] - LC_CP_Y,
+        LC_Array[:, 2] - LC_CP_Z,
+    )
+
+    RC_Array = GetEmptyMovementsArray(EmptyName="Right Condyle")
+    RC_X_Array, RC_Y_Array, RC_Z_Array = (
+        RC_Array[:, 0] - RC_CP_X,
+        RC_Array[:, 1] - RC_CP_Y,
+        RC_Array[:, 2] - RC_CP_Z,
+    )
+
+    IP_Array = GetEmptyMovementsArray(EmptyName="Incisal")
+    IP_X_Array, IP_Y_Array, IP_Z_Array = (
+        IP_Array[:, 0] - IP_CP_X,
+        IP_Array[:, 1] - IP_CP_Y,
+        IP_Array[:, 2] - IP_CP_Z,
+    )
+
+    fig = plt.figure(figsize=(11.69, 18))
+    fig.patch.set_facecolor("silver")
+    spec = gridspec.GridSpec(
+        ncols=4,
+        nrows=6,
+        figure=fig,
+        left=0.07,
+        bottom=0.13,
+        right=0.95,
+        top=0.97,
+        wspace=0.9,
+        hspace=1.5,
+    )
+    infospec = gridspec.GridSpec(
+        ncols=4,
+        nrows=12,
+        figure=fig,
+        left=0.07,
+        bottom=0.1,
+        right=0.95,
+        top=1,
+        wspace=0.9,
+        hspace=1.5,
+    )
+    headimgalpha = 0.5
+    ###################################################################################
+    # INCISAL LINES
+    ###################################################################################
+    IP_CP_X, IP_CP_Y, IP_CP_Z = 0, 0, 0
+
+    LineOpenX = [IP_CP_X, IP_MO_X]
+    LineOpenY = [IP_CP_Y, IP_MO_Y]
+    LineOpenZ = [IP_CP_Z, IP_MO_Z]
+
+    LineProtrusionX = [IP_CP_X, IP_PP_X]
+    LineProtrusionY = [IP_CP_Y, IP_PP_Y]
+    LineProtrusionZ = [IP_CP_Z, IP_PP_Z]
+
+    LineLatRightX = [IP_CP_X, IP_LR_X]
+    LineLatRightY = [IP_CP_Y, IP_LR_Y]
+    LineLatRightZ = [IP_CP_Z, IP_LR_Z]
+
+    LineLatLeftX = [IP_CP_X, IP_LL_X]
+    LineLatLeftY = [IP_CP_Y, IP_LL_Y]
+    LineLatLeftZ = [IP_CP_Z, IP_LL_Z]
+
+    LineMaxOpenY = [IP_MO_Y, IP_MO_Y]
+    LineMaxOpenZ = [IP_CP_Z, IP_MO_Z]
+
+    # FRONTAL PLANE###########################################################################
+    ax0 = fig.add_subplot(spec[0:2, 0:2])
+    ax0.patch.set_facecolor("whitesmoke")
+    ax0.set_title("Coronal Plane (incisal point)")
+    ax0.set(xlabel="X axis, mm", ylabel="Z axis, mm")
+
+    ax0.xaxis.set_major_locator(MultipleLocator(1))
+    ax0.yaxis.set_major_locator(MultipleLocator(1))
+    ax0.grid(which="major", color="#CCCCCC", linestyle="--")
+    ax0.grid(True)
+    ax0.plot(IP_X_Array, IP_Z_Array, color="dimgray", linewidth=0.5)
+    ax0.axhline(y=IP_CP_Z, color="black", linestyle="--", linewidth=2)
+    ax0.axvline(x=IP_CP_X, color="black", linestyle="--", linewidth=2)
+    ax0.plot(
+        LineOpenX,
+        LineOpenZ,
+        color="red",
+        linewidth=2,
+        marker="o",
+        mfc="black",
+        mec="black",
+        ms=6,
+        label="Open",
+    )
+    ax0.plot(
+        LineProtrusionX,
+        LineProtrusionZ,
+        color="blue",
+        linewidth=2,
+        marker="o",
+        mfc="black",
+        mec="black",
+        ms=6,
+        label="Protrusion",
+    )
+    ax0.plot(
+        LineLatRightX,
+        LineLatRightZ,
+        color="orange",
+        linewidth=2,
+        marker="o",
+        mfc="black",
+        mec="black",
+        ms=6,
+        label="Laterotrusion Right",
+    )
+    ax0.plot(
+        LineLatLeftX,
+        LineLatLeftZ,
+        color="magenta",
+        linewidth=2,
+        marker="o",
+        mfc="black",
+        mec="black",
+        ms=6,
+        label="Laterotrusion Left",
+    )
+
+    plt.legend(markerscale=0)
+
+    ax = fig.add_subplot(spec[1, 1])
+    image = plt.imread(join(ImgFolder, "incfront.png"))
+    ax.imshow(image, alpha=headimgalpha)
+    ax.axis("off")
+
+    # ANGLES
+    # RIGHT LATEROTRUSION
+    line1 = np.array([(IP_CP_X, IP_CP_Z), (IP_LR_X, IP_CP_Z)])
+    line2 = np.array([(IP_CP_X, IP_CP_Z), (IP_LR_X, IP_LR_Z)])
+    lines = [line1, line2]
+    for line in lines:
+        x, y = line.T
+    arc, angle_text = get_arc_patch(lines, radius=(1.5, 1.5), reverse=True, flip=True)
+    ax0.add_artist(arc)
+    ax0.text(**angle_text)
+    ANGLE_LR = angle_text["s"]
+
+    # LEFT LATEROTRUSION
+    line1 = np.array([(IP_CP_X, IP_CP_Z), (IP_LL_X, IP_CP_Z)])
+    line2 = np.array([(IP_CP_X, IP_CP_Z), (IP_LL_X, IP_LL_Z)])
+    lines = [line1, line2]
+    for line in lines:
+        x, y = line.T
+    arc, angle_text = get_arc_patch(lines, radius=(1.5, 1.5))
+    ax0.add_artist(arc)
+    ax0.text(**angle_text)
+    ANGLE_LL = angle_text["s"]
+
+    # OPENING DEVIATION
+    line1 = np.array([(IP_CP_X, IP_CP_Z), (IP_MO_X, IP_MO_Z)])
+    line2 = np.array([(IP_CP_X - 0.00001, IP_CP_Z), (IP_CP_X, IP_MO_Z)])
+    lines = [line1, line2]
+    for line in lines:
+        x, y = line.T
+    arc, angle_text = get_arc_patch(lines, radius=(5, 5))
+    ax0.add_artist(arc)
+    ax0.text(**angle_text)
+    ANGLE_OD = angle_text["s"]
+
+    # SAGITTAL PLANE############################################################################
+    ax1 = fig.add_subplot(spec[0:2, 2:4])
+    ax1.patch.set_facecolor("whitesmoke")
+    plt.gca().invert_xaxis()
+    ax1.set_title("Sagittal Plane (incisal point)")
+    ax1.set(xlabel="Y axis, mm", ylabel="Z axis, mm")
+    ax1.xaxis.set_major_locator(MultipleLocator(1))
+    ax1.yaxis.set_major_locator(MultipleLocator(1))
+    ax1.grid(which="major", color="#CCCCCC", linestyle="--")
+    ax1.plot(IP_Y_Array, IP_Z_Array, color="dimgray", linewidth=0.5)
+    ax1.grid(True)
+    ax1.axhline(y=IP_CP_Z, color="black", linestyle="--", linewidth=2)
+    ax1.axvline(x=IP_CP_Y, color="black", linestyle="--", linewidth=2)
+    ax1.plot(
+        LineMaxOpenY,
+        LineMaxOpenZ,
+        color="b",
+        linestyle="--",
+        linewidth=3,
+        marker="o",
+        mfc="black",
+        mec="black",
+        ms=2,
+    )
+    ax1.plot(
+        LineOpenY,
+        LineOpenZ,
+        color="red",
+        linewidth=3,
+        marker="o",
+        mfc="black",
+        mec="black",
+        ms=6,
+    )
+    ax1.plot(
+        LineProtrusionY,
+        LineProtrusionZ,
+        color="blue",
+        linewidth=3,
+        marker="o",
+        mfc="black",
+        mec="black",
+        ms=6,
+    )
+    ax1.plot(
+        LineLatRightY,
+        LineLatRightZ,
+        color="orange",
+        linewidth=3,
+        marker="o",
+        mfc="black",
+        mec="black",
+        ms=6,
+    )
+    ax1.plot(
+        LineLatLeftY,
+        LineLatLeftZ,
+        color="magenta",
+        linewidth=3,
+        marker="o",
+        mfc="black",
+        mec="black",
+        ms=6,
+    )
+
+    ax = fig.add_subplot(spec[1, 3])
+    image = plt.imread(join(ImgFolder, "incright.png"))
+    ax.imshow(image, alpha=headimgalpha)
+    ax.axis("off")
+
+    # ANGLES
+
+    # PROTRUSION
+    line1 = np.array([(IP_CP_Y, IP_CP_Z), (IP_PP_Y, IP_PP_Z)])
+    line2 = np.array([(IP_CP_Y, IP_CP_Z), (IP_PP_Y, IP_CP_Z)])
+
+    lines = [line1, line2]
+    for line in lines:
+        x, y = line.T
+    arc, angle_text = get_arc_patch(lines, radius=(1.5, 1.5), flip=True)
+    ax1.add_artist(arc)
+    ax1.text(**angle_text)
+    ANGLE_Rrot = angle_text["s"]
+
+    # INFO PLOTS########################################################################
+
+    MaxOpen = abs(round((IP_MO_Z) - (IP_CP_Z), 2))
+
+    axI1 = fig.add_subplot(infospec[4, 0])
+    axI1.grid(False)
+    plt.axis("off")
+    axI1.text(
+        0.0,
+        1.2,
+        "Laterotrusion Right = "
+        + ANGLE_LR
+        + "\n"
+        + "Laterotrusion Left = "
+        + ANGLE_LL
+        + "\n"
+        + "Opening deviation = "
+        + ANGLE_OD,
+    )
+
+    axI2 = fig.add_subplot(infospec[4, 2])
+    axI2.grid(False)
+    plt.axis("off")
+    axI2.text(
+        0.0,
+        1.2,
+        "Incisal point protrusion = "
+        + ANGLE_Rrot
+        + "\n"
+        + "Maximum opening = "
+        + str(MaxOpen)
+        + " mm"
+        + "\n",
+    )
+
+    ###################################################################################
+    # CONDYLES LINES
+    ###################################################################################
+    RC_CP_X, RC_CP_Y, RC_CP_Z = 0, 0, 0
+    LC_CP_X, LC_CP_Y, LC_CP_Z = 0, 0, 0
+
+    # LEFT CONDYLE
+    LC_LineOpenX = [LC_CP_X, LC_MO_X]
+    LC_LineOpenY = [LC_CP_Y, LC_MO_Y]
+    LC_LineOpenZ = [LC_CP_Z, LC_MO_Z]
+
+    LC_LineProtrusionX = [LC_CP_X, LC_PP_X]
+    LC_LineProtrusionY = [LC_CP_Y, LC_PP_Y]
+    LC_LineProtrusionZ = [LC_CP_Z, LC_PP_Z]
+
+    LC_LineLatRightX = [LC_CP_X, LC_LR_X]
+    LC_LineLatRightY = [LC_CP_Y, LC_LR_Y]
+    LC_LineLatRightZ = [LC_CP_Z, LC_LR_Z]
+
+    LC_LineLatLeftX = [LC_CP_X, LC_LL_X]
+    LC_LineLatLeftY = [LC_CP_Y, LC_LL_Y]
+    LC_LineLatLeftZ = [LC_CP_Z, LC_LL_Z]
+
+    LC_LineMomShiftX = [LC_CP_X, LC_LL_X]
+    LC_LineMomShiftY = [LC_CP_Y, LC_CP_Y]
+
+    # RIGHT CONDYLE
+    RC_LineOpenX = [RC_CP_X, RC_MO_X]
+    RC_LineOpenY = [RC_CP_Y, RC_MO_Y]
+    RC_LineOpenZ = [RC_CP_Z, RC_MO_Z]
+
+    RC_LineProtrusionX = [RC_CP_X, RC_PP_X]
+    RC_LineProtrusionY = [RC_CP_Y, RC_PP_Y]
+    RC_LineProtrusionZ = [RC_CP_Z, RC_PP_Z]
+
+    RC_LineLatRightX = [RC_CP_X, RC_LR_X]
+    RC_LineLatRightY = [RC_CP_Y, RC_LR_Y]
+    RC_LineLatRightZ = [RC_CP_Z, RC_LR_Z]
+
+    RC_LineLatLeftX = [RC_CP_X, RC_LL_X]
+    RC_LineLatLeftY = [RC_CP_Y, RC_LL_Y]
+    RC_LineLatLeftZ = [RC_CP_Z, RC_LL_Z]
+
+    RC_LineMomShiftX = [RC_CP_X, RC_LR_X]
+    RC_LineMomShiftY = [RC_CP_Y, RC_CP_Y]
+
+    ################################################################################################
+    #    CONDYLE PLOTS
+    ################################################################################################
+
+    # RIGHT COND SAGITTAL PLANE
+    ax2 = fig.add_subplot(spec[2:4, 0:2])
+    plt.gca().invert_xaxis()
+    ax2.patch.set_facecolor("lightskyblue")
+    ax2.set_title("Sagittal Plane (right condile)")
+    ax2.set(xlabel="Y axis, mm", ylabel="Z axis, mm")
+    ax2.plot(RC_Y_Array, RC_Z_Array, color="dimgray", linewidth=0.7)
+    ax2.grid(True)
+    ax2.axhline(y=0, color="black", linestyle="--", linewidth=2)
+    ax2.plot(
+        RC_LineOpenY,
+        RC_LineOpenZ,
+        color="red",
+        linewidth=3,
+        marker="o",
+        mfc="black",
+        mec="black",
+        ms=6,
+    )
+    ax2.plot(
+        RC_LineProtrusionY,
+        RC_LineProtrusionZ,
+        color="blue",
+        linewidth=3,
+        marker="o",
+        mfc="black",
+        mec="black",
+        ms=6,
+    )
+    ax2.plot(
+        RC_LineLatRightY,
+        RC_LineLatRightZ,
+        color="orange",
+        linewidth=3,
+        marker="o",
+        mfc="black",
+        mec="black",
+        ms=6,
+    )
+    ax2.plot(
+        RC_LineLatLeftY,
+        RC_LineLatLeftZ,
+        color="magenta",
+        linewidth=3,
+        marker="o",
+        mfc="black",
+        mec="black",
+        ms=6,
+    )
+
+    # ANGLE OF CONDYLAR GUIDANCE
+    line1 = np.array([(RC_CP_Y, RC_CP_Z), (RC_PP_Y, RC_CP_Z)])
+    line2 = np.array([(RC_CP_Y, RC_CP_Z), (RC_PP_Y, RC_PP_Z)])
+    lines = [line1, line2]
+    for line in lines:
+        x, y = line.T
+    arc, angle_text = get_arc_patch(lines, radius=(1, 1), reverse=True, flip=True)
+    ax2.add_artist(arc)
+    ax2.text(**angle_text)
+    ANGLE_RC_Rrot = angle_text["s"]
+
+    ax = fig.add_subplot(spec[3, 0])
+    image = plt.imread(join(ImgFolder, "rightright.png"))
+    ax.imshow(image, alpha=headimgalpha)
+    ax.axis("off")
+
+    ################################################################################################
+    # LEFT COND SAGITTAL PLANE
+    ax3 = fig.add_subplot(spec[2:4, 2:4])
+    ax3.patch.set_facecolor("antiquewhite")
+    ax3.set_title("Sagittal Plane (left condile)")
+    ax3.set(xlabel="Y axis, mm", ylabel="Z axis, mm")
+    ax3.plot(LC_Y_Array, LC_Z_Array, color="dimgray", linewidth=0.7)
+    ax3.grid(True)
+    ax3.axhline(y=0, color="black", linestyle="--", linewidth=2)
+    ax3.plot(
+        LC_LineOpenY,
+        LC_LineOpenZ,
+        color="red",
+        linewidth=3,
+        marker="o",
+        mfc="black",
+        mec="black",
+        ms=6,
+    )
+    ax3.plot(
+        LC_LineProtrusionY,
+        LC_LineProtrusionZ,
+        color="blue",
+        linewidth=3,
+        marker="o",
+        mfc="black",
+        mec="black",
+        ms=6,
+    )
+    ax3.plot(
+        LC_LineLatRightY,
+        LC_LineLatRightZ,
+        color="orange",
+        linewidth=3,
+        marker="o",
+        mfc="black",
+        mec="black",
+        ms=6,
+    )
+    ax3.plot(
+        LC_LineLatLeftY,
+        LC_LineLatLeftZ,
+        color="magenta",
+        linewidth=3,
+        marker="o",
+        mfc="black",
+        mec="black",
+        ms=6,
+    )
+
+    # ANGLE OF CONDYLAR GUIDANCE
+
+    line1 = np.array([(LC_CP_Y, LC_CP_Z), (LC_PP_Y, LC_CP_Z)])
+    line2 = np.array([(LC_CP_Y, LC_CP_Z), (LC_PP_Y, LC_PP_Z)])
+    lines = [line1, line2]
+    for line in lines:
+        x, y = line.T
+    arc, angle_text = get_arc_patch(lines, radius=(1, 1), reverse=True, flip=True)
+    ax3.add_artist(arc)
+    ax3.text(**angle_text)
+    ANGLE_LC_Lrot = angle_text["s"]
+
+    ax = fig.add_subplot(spec[3, 3])
+    image = plt.imread(join(ImgFolder, "leftleft.png"))
+    ax.imshow(image, alpha=headimgalpha)
+    ax.axis("off")
+
+    ################################################################################################
+    # RIGHT COND TRANSVERCE PLANE
+    ax4 = fig.add_subplot(spec[4:6, 0:2])
+    ax4.patch.set_facecolor("lightskyblue")
+    ax4.set_title("Axial Plane (right condile)")
+    ax4.set(xlabel="X axis, mm", ylabel="Y axis, mm")
+    ax4.plot(RC_X_Array, RC_Y_Array, color="dimgray", linewidth=0.7)
+    ax4.grid(True)
+    ax4.plot(
+        RC_LineOpenX,
+        RC_LineOpenY,
+        color="red",
+        linewidth=3,
+        marker="o",
+        mfc="black",
+        mec="black",
+        ms=6,
+    )
+    ax4.plot(
+        RC_LineProtrusionX,
+        RC_LineProtrusionY,
+        color="blue",
+        linewidth=3,
+        marker="o",
+        mfc="black",
+        mec="black",
+        ms=6,
+    )
+    ax4.plot(
+        RC_LineLatRightX,
+        RC_LineLatRightY,
+        color="orange",
+        linewidth=3,
+        marker="o",
+        mfc="black",
+        mec="black",
+        ms=6,
+    )
+    ax4.plot(
+        RC_LineLatLeftX,
+        RC_LineLatLeftY,
+        color="magenta",
+        linewidth=3,
+        marker="o",
+        mfc="black",
+        mec="black",
+        ms=6,
+    )
+    ax4.axhline(y=0, color="black", linestyle="--", linewidth=2)
+    ax4.axvline(x=0, color="black", linestyle="--", linewidth=2)
+    ax4.plot(
+        RC_LineProtrusionX,
+        RC_LineProtrusionY,
+        color="blue",
+        linewidth=3,
+        marker="o",
+        mfc="black",
+        mec="black",
+        ms=6,
+    )
+    ax4.plot(
+        RC_LineMomShiftX,
+        RC_LineMomShiftY,
+        color="navy",
+        linewidth=3,
+        marker="D",
+        mfc="white",
+        mec="black",
+        ms=6,
+        markeredgewidth=2,
+    )
+
+    ax = fig.add_subplot(spec[5, 0])
+    image = plt.imread(join(ImgFolder, "righttop.png"))
+    ax.imshow(image, alpha=headimgalpha)
+    ax.axis("off")
+
+    # BENNETT ANGLE
+    line1 = np.array([(RC_CP_X, RC_CP_Y), (RC_LL_X, RC_LL_Y)])
+    line2 = np.array([(RC_CP_X - 0.00001, RC_CP_Y), (RC_CP_X, RC_PP_Y)])
+    lines = [line1, line2]
+    for line in lines:
+        x, y = line.T
+    arc, angle_text = get_arc_patch(lines, radius=(1, 1))
+    ax4.add_artist(arc)
+    ax4.text(**angle_text)
+    ANGLE_RBen = angle_text["s"]
+
+    # INFO PLOTS########################################################################
+    axI3 = fig.add_subplot(infospec[7, 0])
+    axI3.grid(False)
+    plt.axis("off")
+    axI3.text(0.0, -0.6, "Angle of condylar guidance = " + ANGLE_RC_Rrot)
+
+    axI3 = fig.add_subplot(infospec[7, 2])
+    axI3.grid(False)
+    plt.axis("off")
+    axI3.text(0.0, -0.6, "Angle of condylar guidance = " + ANGLE_LC_Lrot)
+
+    ################################################################################################
+    # LEFT COND TRANSVERCE PLANE
+    ax5 = fig.add_subplot(spec[4:6, 2:4])
+    ax5.patch.set_facecolor("antiquewhite")
+    ax5.set_title("Axial Plane (left condile)")
+    ax5.set(xlabel="X axis, mm", ylabel="Y axis, mm")
+    ax5.plot(LC_X_Array, LC_Y_Array, color="dimgray", linewidth=0.7)
+    ax5.grid(True)
+    ax5.plot(
+        LC_LineOpenX,
+        LC_LineOpenY,
+        color="red",
+        linewidth=3,
+        marker="o",
+        mfc="black",
+        mec="black",
+        ms=6,
+    )
+    ax5.plot(
+        LC_LineProtrusionX,
+        LC_LineProtrusionY,
+        color="blue",
+        linewidth=3,
+        marker="o",
+        mfc="black",
+        mec="black",
+        ms=6,
+    )
+    ax5.plot(
+        LC_LineLatRightX,
+        LC_LineLatRightY,
+        color="orange",
+        linewidth=3,
+        marker="o",
+        mfc="black",
+        mec="black",
+        ms=6,
+    )
+    ax5.plot(
+        LC_LineLatLeftX,
+        LC_LineLatLeftY,
+        color="magenta",
+        linewidth=3,
+        marker="o",
+        mfc="black",
+        mec="black",
+        ms=6,
+    )
+    ax5.axhline(y=0, color="black", linestyle="--", linewidth=2)
+    ax5.axvline(x=0, color="black", linestyle="--", linewidth=2)
+
+    ax5.plot(
+        LC_LineMomShiftX,
+        LC_LineMomShiftY,
+        color="navy",
+        linewidth=3,
+        marker="D",
+        mfc="white",
+        mec="black",
+        ms=6,
+        markeredgewidth=2,
+    )
+
+    # BENNETT ANGLE
+
+    line1 = np.array([(LC_CP_X, LC_CP_Y), (LC_LR_X, LC_LR_Y)])
+    line2 = np.array([(LC_CP_X - 0.00001, LC_CP_Y), (LC_CP_X, LC_PP_Y)])
+
+    lines = [line1, line2]
+    for line in lines:
+        x, y = line.T
+    arc, angle_text = get_arc_patch(
+        lines, radius=(1, 1), reverse=True, obtuse=True, flip=True
+    )
+    ax5.add_artist(arc)
+    ax5.text(**angle_text)
+    ANGLE_LBen = angle_text["s"]
+
+    ax = fig.add_subplot(spec[5, 3])
+    image = plt.imread(join(ImgFolder, "lefttop.png"))
+    ax.imshow(image, alpha=headimgalpha)
+    ax.axis("off")
+
+    # INFO PLOTS########################################################################
+    RightShift = abs(round(RC_LR_X - RC_CP_X, 3))
+    LeftShift = abs(round(LC_LL_X - LC_CP_X, 3))
+
+    axI5 = fig.add_subplot(infospec[11, 0])
+    axI5.grid(False)
+    plt.axis("off")
+    axI5.text(
+        0.0,
+        -1,
+        "RIGHT TMJ"
+        + "\n"
+        + "Bennett angle = "
+        + ANGLE_RBen
+        + "\n"
+        + "Bennett shift = "
+        + str(RightShift)
+        + " mm",
+    )
+
+    axI6 = fig.add_subplot(infospec[11, 2])
+    axI6.grid(False)
+    plt.axis("off")
+    axI6.text(
+        0.0,
+        -1,
+        "LEFT TMJ"
+        + "\n"
+        + "Bennett angle = "
+        + ANGLE_LBen
+        + "\n"
+        + "Bennett shift = "
+        + str(LeftShift)
+        + " mm",
+    )
+
+    return fig
+
+
+def get_arc_patch(
+    lines, radius=None, flip=False, obtuse=False, reverse=False, dec=2, fontsize=12
+):
+
+    Arc = matplotlib.patches.Arc
+    line1, line2 = lines
+    linedata = [np.array(line.T) for line in lines]
+    scales = [np.diff(line).T[0] for line in linedata]
+    scales = [s[1] / s[0] for s in scales]
+
+    # Get angle to horizontal
+    angles = np.array([np.rad2deg(np.arctan(s / 1)) for s in scales])
+    if obtuse:
+        angles[1] = angles[1] + 180
+    if flip:
+        angles += 180
+    if reverse:
+        angles = angles[::-1]
+
+    angle = abs(angles[1] - angles[0])
+
+    if radius is None:
+        lengths = np.linalg.norm(lines, axis=(0, 1))
+        radius = min(lengths) / 2
+
+    # Solve the point of intersection between the lines:
+    t, s = np.linalg.solve(
+        np.array([line1[1] - line1[0], line2[0] - line2[1]]).T, line2[0] - line1[0]
+    )
+
+    intersection = np.array((1 - t) * line1[0] + t * line1[1])
+    # Check if radius is a single value or a tuple
+    try:
+        r1, r2 = radius
+    except:
+        r1 = r2 = radius
+    arc = Arc(
+        intersection,
+        2 * r1,
+        2 * r2,
+        theta1=angles[1],
+        theta2=angles[0],
+        linestyle="-",
+        color="black",
+        linewidth=4,
+    )
+
+    half = halfangle(*angles[::-1])
+    sin = np.sin(np.deg2rad(half))
+    cos = np.cos(np.deg2rad(half))
+    r = r1 * r2 / (r1 ** 2 * sin ** 2 + r2 ** 2 * cos ** 2) ** 0.5
+    xy = np.array((r * cos, r * sin))
+    xy = intersection + xy * 1.5
+
+    textangle = half if half > 270 or half < 90 else 180 + half
+    textkwargs = {
+        "x": xy[0],
+        "y": xy[1],
+        "s": str(round(angle, dec)) + "°",
+        "ha": "center",
+        "va": "center",
+        "fontsize": fontsize,
+        "rotation": textangle,
+    }
+    return arc, textkwargs
+
+
+class MyApp(QWidget):
+    def __init__(self, fig):
+        super().__init__()
+        self.title = "Paths Report"
+        self.posXY = (10, 40)
+        self.windowSize = (1188, 1000)
+        self.fig = fig
+
+    def initUI(self):
+        QMainWindow().setCentralWidget(QWidget())
+
+        self.setLayout(QVBoxLayout())
+        self.layout().setContentsMargins(0, 0, 0, 0)
+        self.layout().setSpacing(0)
+
+        canvas = FigCanvas(self.fig)
+        canvas.draw()
+
+        scroll = QScrollArea(self)
+        scroll.setWidget(canvas)
+
+        nav = NabToolbar(canvas, self)
+        self.layout().addWidget(nav)
+        self.layout().addWidget(scroll)
+
+        self.show_basic()
+
+    def show_basic(self):
+        self.setWindowTitle(self.title)
+        self.setGeometry(*self.posXY, *self.windowSize)
+        self.show()
+
+
+def halfangle(a, b):
+    "Gets the middle angle between a and b, when increasing from a to b"
+    if b < a:
+        b += 360
+    return (a + b) / 2 % 360
+
+
 def GetEmptyMovementsArray(EmptyName, FrameStart=None, FrameEnd=None):
 
     Obj = bpy.data.objects.get(EmptyName)
