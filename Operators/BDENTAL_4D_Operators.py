@@ -858,19 +858,17 @@ class BDENTAL_4D_OT_AddSlices(bpy.types.Operator):
     def execute(self, context):
         BDENTAL_4D_Props = bpy.context.scene.BDENTAL_4D_Props
 
-        Active_Obj = bpy.context.view_layer.objects.active
+        Active_Obj = context.view_layer.objects.active
 
         if not Active_Obj:
             message = [" Please select CTVOLUME or SEGMENTATION ! "]
             ShowMessageBox(message=message, icon="COLORSET_02_VEC")
             return {"CANCELLED"}
         else:
-            Conditions = [
-                not Active_Obj.name.startswith("BD"),
-                not Active_Obj.name.endswith(("_CTVolume", "SEGMENTATION")),
-                Active_Obj.select_get() == False,
-            ]
-            if Conditions[0] or Conditions[1] or Conditions[2]:
+            N = Active_Obj.name
+            Condition = N.startswith("BD") and ["_CTVolume" in N or "SEGMENTATION" in N]
+
+            if not Condition:
                 message = [" Please select CTVOLUME or SEGMENTATION ! "]
                 ShowMessageBox(message=message, icon="COLORSET_02_VEC")
                 return {"CANCELLED"}
@@ -1555,8 +1553,6 @@ class BDENTAL_4D_OT_MultiView(bpy.types.Operator):
 
     def execute(self, context):
 
-        BDENTAL_4D_Props = bpy.context.scene.BDENTAL_4D_Props
-
         Active_Obj = bpy.context.view_layer.objects.active
 
         if not Active_Obj:
@@ -1564,14 +1560,14 @@ class BDENTAL_4D_OT_MultiView(bpy.types.Operator):
             ShowMessageBox(message=message, icon="COLORSET_02_VEC")
             return {"CANCELLED"}
         else:
-            Conditions = [
-                not Active_Obj.name.startswith("BD"),
-                not Active_Obj.name.endswith(
-                    ("_CTVolume", "SEGMENTATION", "_SLICES_POINTER")
-                ),
-                Active_Obj.select_get() == False,
-            ]
-            if Conditions[0] or Conditions[1] or Conditions[2]:
+            N = Active_Obj.name
+            Condition = (
+                N.startswith("BD")
+                and ["_CTVolume" in N or "SEGMENTATION" in N or "_SLICES_POINTER" in N]
+                and Active_Obj.select_get() == True
+            )
+
+            if not Condition:
                 message = [
                     " Please select CTVOLUME or SEGMENTATION or _SLICES_POINTER ! "
                 ]
@@ -1728,7 +1724,7 @@ class BDENTAL_4D_OT_AddReferencePlanes(bpy.types.Operator):
                         CursorToVoxelPoint(Preffix=self.Preffix, CursorMove=True)
 
                     loc = context.scene.cursor.location
-                    P = AddMarkupPoint(P_Names[0], self.Color, loc, self.CollName)
+                    P = AddMarkupPoint(P_Names[0], self.Color, loc, 1, self.CollName)
                     self.CurrentPointsList.append(P)
 
                 if not P_Names:
@@ -1912,6 +1908,8 @@ class BDENTAL_4D_OT_AddMarkupPoint(bpy.types.Operator):
 
     def execute(self, context):
 
+        bpy.ops.object.mode_set(mode="OBJECT")
+
         if self.MarkupVoxelMode:
             Preffix = self.TargetObject.name[:5]
             CursorToVoxelPoint(Preffix=Preffix, CursorMove=True)
@@ -1924,6 +1922,10 @@ class BDENTAL_4D_OT_AddMarkupPoint(bpy.types.Operator):
             Diameter=self.Markup_Diameter,
             CollName=self.CollName,
         )
+        bpy.ops.object.select_all(action="DESELECT")
+        self.TargetObject.select_set(True)
+        bpy.context.view_layer.objects.active = self.TargetObject
+        bpy.ops.object.mode_set(mode=self.mode)
 
         return {"FINISHED"}
 
@@ -1945,6 +1947,7 @@ class BDENTAL_4D_OT_AddMarkupPoint(bpy.types.Operator):
                 return {"CANCELLED"}
 
             else:
+                self.mode = Active_Obj.mode
                 self.TargetObject = Active_Obj
                 self.MarkupVoxelMode = self.TargetObject.name.startswith(
                     "BD"
@@ -3441,6 +3444,8 @@ class BDENTAL_4D_OT_AlignPoints(bpy.types.Operator):
                 for obj in VisObj:
                     if not obj in [self.TargetObject, self.SourceObject]:
                         obj.hide_set(True)
+
+                self.Solid = False
                 if bpy.context.space_data.shading.type == "SOLID":
                     self.Solid = True
                     self.background_type = (
@@ -4385,6 +4390,105 @@ class BDENTAL_4D_OT_retopo_smooth(bpy.types.Operator):
 
 #######################################################################################
 # clean model operator :
+class BDENTAL_4D_OT_clean_mesh2(bpy.types.Operator):
+    """ Fill small and medium holes and remove small parts"""
+
+    bl_idname = "bdental4d.clean_mesh2"
+    bl_label = "CLEAN MESH"
+    bl_options = {"REGISTER", "UNDO"}
+
+    Fill_treshold: IntProperty(
+        name="Holes Fill Treshold",
+        description="Hole Fill Treshold",
+        default=100,
+    )
+
+    def execute(self, context):
+
+        ActiveObj = self.ActiveObj
+
+        ####### Get model to clean #######
+        bpy.ops.object.mode_set(mode="OBJECT")
+        # bpy.ops.object.origin_set(type="ORIGIN_GEOMETRY", center="MEDIAN")
+        Obj = ActiveObj
+        bpy.ops.object.select_all(action="DESELECT")
+        Obj.select_set(True)
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.context.tool_settings.mesh_select_mode = (True, False, False)
+
+        ####### Remove doubles, Make mesh consistent (face normals) #######
+        bpy.ops.mesh.select_all(action="SELECT")
+        bpy.ops.mesh.remove_doubles(threshold=0.1)
+        bpy.ops.mesh.select_all(action="SELECT")
+        bpy.ops.mesh.normals_make_consistent(inside=False)
+
+        ############ clean non_manifold borders ##############
+        # bpy.ops.mesh.select_all(action="DESELECT")
+        # bpy.ops.mesh.select_non_manifold()
+        # bpy.ops.mesh.select_less()
+        # bpy.ops.mesh.delete(type="VERT")
+        # bpy.ops.mesh.select_all(action="SELECT")
+        # bpy.ops.mesh.fill_holes(sides=self.Fill_treshold)
+        bpy.ops.mesh.select_all(action="DESELECT")
+        bpy.ops.mesh.select_non_manifold()
+        bpy.ops.mesh.edge_split(type="EDGE")
+        bpy.ops.object.mode_set(mode="OBJECT")
+
+        To_Remove = [
+            obj for obj in context.selected_objects if not obj.name == Obj.name
+        ]
+        if To_Remove:
+            for obj in To_Remove:
+                bpy.data.objects.remove(obj)
+        Obj.select_set(True)
+        bpy.context.view_layer.objects.active = Obj
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.mesh.select_all(action="DESELECT")
+        bpy.ops.mesh.select_non_manifold()
+        bpy.ops.mesh.select_less()
+        bpy.ops.mesh.delete(type="VERT")
+        bpy.ops.mesh.select_all(action="SELECT")
+        bpy.ops.mesh.fill_holes(sides=self.Fill_treshold)
+        bpy.ops.mesh.select_all(action="DESELECT")
+        bpy.ops.mesh.select_non_manifold()
+
+        bpy.ops.mesh.looptools_relax(
+            input="selected",
+            interpolation="cubic",
+            iterations="3",
+            regular=True,
+        )
+
+        bpy.ops.mesh.select_all(action="DESELECT")
+        bpy.ops.object.mode_set(mode="OBJECT")
+        Obj.select_set(True)
+        bpy.context.view_layer.objects.active = Obj
+
+        print("Clean Mesh finished.")
+
+        return {"FINISHED"}
+
+    def invoke(self, context, event):
+        self.ActiveObj = context.active_object
+        condition = (
+            self.ActiveObj
+            and self.ActiveObj.type == "MESH"
+            and self.ActiveObj in bpy.context.selected_objects
+        )
+
+        if not condition:
+
+            message = [" Please select the target object !"]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+
+            return {"CANCELLED"}
+
+        else:
+            wm = context.window_manager
+            return wm.invoke_props_dialog(self)
+
+
+# clean model operator :
 class BDENTAL_4D_OT_clean_mesh(bpy.types.Operator):
     """ Fill small and medium holes and remove small parts"""
 
@@ -4425,6 +4529,7 @@ class BDENTAL_4D_OT_clean_mesh(bpy.types.Operator):
                 ####### Remove doubles, Make mesh consistent (face normals) #######
                 bpy.ops.mesh.select_all(action="SELECT")
                 bpy.ops.mesh.remove_doubles(threshold=0.1)
+                bpy.ops.mesh.select_all(action="SELECT")
                 bpy.ops.mesh.normals_make_consistent(inside=False)
 
                 ############ clean non_manifold borders ##############
@@ -4670,25 +4775,27 @@ class BDENTAL_4D_OT_SplintCutterCut(bpy.types.Operator):
     bl_label = "CURVE CUTTER ADD"
     bl_options = {"REGISTER", "UNDO"}
 
+    Cut_Modes_List = ["Remove Small Part", "Remove Big Part", "Keep All"]
+    items = []
+    for i in range(len(Cut_Modes_List)):
+        item = (str(Cut_Modes_List[i]), str(Cut_Modes_List[i]), str(""), int(i))
+        items.append(item)
+
+    CutMode: EnumProperty(
+        name="Splint Cut Mode",
+        items=items,
+        description="Splint Cut Mode",
+        default="Keep All",
+    )
+
     def execute(self, context):
-
-        BDENTAL_4D_Props = context.scene.BDENTAL_4D_Props
-
-        # Get CuttingTarget :
-        CuttingTargetName = BDENTAL_4D_Props.CuttingTargetNameProp
-        CuttingTarget = bpy.data.objects[CuttingTargetName]
 
         # Get CurveCutter :
         bpy.ops.object.mode_set(mode="OBJECT")
         bpy.ops.object.select_all(action="DESELECT")
 
-        CurveCuttersList = [
-            obj
-            for obj in context.scene.objects
-            if obj.type == "CURVE" and obj.name.startswith("BDENTAL4D_Splint_Cut")
-        ]
         CurveMeshesList = []
-        for CurveCutter in CurveCuttersList:
+        for CurveCutter in self.CurveCuttersList:
             bpy.ops.object.select_all(action="DESELECT")
             CurveCutter.select_set(True)
             bpy.context.view_layer.objects.active = CurveCutter
@@ -4712,8 +4819,8 @@ class BDENTAL_4D_OT_SplintCutterCut(bpy.types.Operator):
         bpy.ops.object.voxel_remesh()
 
         bpy.ops.object.select_all(action="DESELECT")
-        CuttingTarget.select_set(True)
-        bpy.context.view_layer.objects.active = CuttingTarget
+        self.CuttingTarget.select_set(True)
+        bpy.context.view_layer.objects.active = self.CuttingTarget
 
         bpy.ops.object.modifier_add(type="BOOLEAN")
         bpy.context.object.modifiers["Boolean"].show_viewport = False
@@ -4726,21 +4833,48 @@ class BDENTAL_4D_OT_SplintCutterCut(bpy.types.Operator):
 
         VisObj = [obj.name for obj in context.visible_objects]
         bpy.ops.object.select_all(action="DESELECT")
-        CuttingTarget.select_set(True)
+        self.CuttingTarget.select_set(True)
         bpy.ops.object.hide_view_set(unselected=True)
 
         bpy.ops.bdental4d.separate_objects(SeparateMode="Loose Parts")
 
-        Splint = (
-            max([[len(obj.data.polygons), obj] for obj in context.visible_objects])
-        )[1]
-        for obj in context.visible_objects:
-            if not obj is Splint:
-                bpy.data.objects.remove(obj)
+        if not self.CutMode == "Keep All":
 
-        Splint.select_set(True)
-        bpy.context.view_layer.objects.active = Splint
-        bpy.ops.object.shade_flat()
+            Splint_Max = (
+                max(
+                    [
+                        [len(obj.data.polygons), obj.name]
+                        for obj in context.visible_objects
+                    ]
+                )
+            )[1]
+            Splint_min = (
+                min(
+                    [
+                        [len(obj.data.polygons), obj.name]
+                        for obj in context.visible_objects
+                    ]
+                )
+            )[1]
+
+            if self.CutMode == "Remove Small Part":
+                Splint = bpy.data.objects.get(Splint_Max)
+                for obj in context.visible_objects:
+                    if not obj is Splint:
+                        bpy.data.objects.remove(obj)
+
+            if self.CutMode == "Remove Big Part":
+                Splint = bpy.data.objects.get(Splint_min)
+                for obj in context.visible_objects:
+                    if not obj is Splint:
+                        bpy.data.objects.remove(obj)
+
+            Splint.select_set(True)
+            bpy.context.view_layer.objects.active = Splint
+            bpy.ops.object.shade_flat()
+
+        if self.CutMode == "Keep All":
+            bpy.ops.object.select_all(action="DESELECT")
 
         for objname in VisObj:
             obj = bpy.data.objects.get(objname)
@@ -4749,8 +4883,32 @@ class BDENTAL_4D_OT_SplintCutterCut(bpy.types.Operator):
 
         bpy.context.scene.tool_settings.use_snap = False
         bpy.ops.view3d.snap_cursor_to_center()
-
+        self.BDENTAL_4D_Props.CuttingTargetNameProp = ""
         return {"FINISHED"}
+
+    def invoke(self, context, event):
+
+        self.BDENTAL_4D_Props = context.scene.BDENTAL_4D_Props
+
+        # Get CuttingTarget :
+        CuttingTargetName = self.BDENTAL_4D_Props.CuttingTargetNameProp
+        self.CuttingTarget = bpy.data.objects.get(CuttingTargetName)
+        self.CurveCuttersList = [
+            obj
+            for obj in context.scene.objects
+            if obj.type == "CURVE" and obj.name.startswith("BDENTAL4D_Splint_Cut")
+        ]
+
+        if not self.CurveCuttersList or not self.CuttingTarget:
+
+            message = [" Please Add Splint Cutters first !"]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+
+            return {"CANCELLED"}
+
+        else:
+            wm = context.window_manager
+            return wm.invoke_props_dialog(self)
 
 
 #######################################################################################
@@ -4825,15 +4983,14 @@ class BDENTAL_4D_OT_CurveCutterAdd(bpy.types.Operator):
 
             if event.value == ("PRESS"):
 
-                CurveCutterName = bpy.context.scene.BDENTAL_4D_Props.CurveCutterNameProp
-                CurveCutter = bpy.data.objects[CurveCutterName]
                 bpy.ops.object.mode_set(mode="OBJECT")
-
-                bpy.ops.object.select_all(action="DESELECT")
-                CurveCutter.select_set(True)
-                bpy.context.view_layer.objects.active = CurveCutter
-                bpy.ops.object.delete(use_global=False, confirm=False)
-
+                bpy.data.objects.remove(self.Cutter)
+                Coll = bpy.data.collections.get("BDENTAL-4D Cutters")
+                if Coll:
+                    Hooks = [obj for obj in Coll.objects if "Hook" in obj.name]
+                    if Hooks:
+                        for obj in Hooks:
+                            bpy.data.objects.remove(obj)
                 CuttingTargetName = context.scene.BDENTAL_4D_Props.CuttingTargetNameProp
                 CuttingTarget = bpy.data.objects[CuttingTargetName]
 
@@ -4844,7 +5001,7 @@ class BDENTAL_4D_OT_CurveCutterAdd(bpy.types.Operator):
                 bpy.ops.wm.tool_set_by_id(name="builtin.select")
                 bpy.context.scene.tool_settings.use_snap = False
                 bpy.context.space_data.overlay.show_outline_selected = True
-
+                context.scene.BDENTAL_4D_Props.CuttingTargetNameProp = ""
                 return {"CANCELLED"}
 
         return {"RUNNING_MODAL"}
@@ -4876,6 +5033,7 @@ class BDENTAL_4D_OT_CurveCutterAdd(bpy.types.Operator):
                 bpy.ops.object.hide_view_set(unselected=True)
 
                 CuttingCurveAdd()
+                self.Cutter = context.active_object
 
                 context.window_manager.modal_handler_add(self)
 
@@ -4931,14 +5089,15 @@ class BDENTAL_4D_OT_CurveCutterCut(bpy.types.Operator):
                 for mat_slot in CurveCutter.material_slots:
                     bpy.ops.object.material_slot_remove()
 
-                # Change CurveCutter setting   :
-                bpy.context.object.data.bevel_depth = 0
-                bpy.context.object.data.offset = 0
+                # # Change CurveCutter setting   :
+                # bpy.context.object.data.bevel_depth = 0
+                # bpy.context.object.data.offset = 0
 
                 # subdivide curve points :
-                bpy.ops.object.mode_set(mode="EDIT")
-                bpy.ops.curve.select_all(action="SELECT")
-                bpy.ops.curve.subdivide()
+
+                # bpy.ops.object.mode_set(mode="EDIT")
+                # bpy.ops.curve.select_all(action="SELECT")
+                # bpy.ops.curve.subdivide()
 
                 # convert CurveCutter to mesh :
                 bpy.ops.object.mode_set(mode="OBJECT")
@@ -5016,9 +5175,10 @@ class BDENTAL_4D_OT_CurveCutterCut(bpy.types.Operator):
         bpy.ops.ed.undo_push()
         # 1st methode :
         SplitSeparator(CuttingTarget=CuttingTarget)
-        PartsFilter()
-        for obj in bpy.context.visible_objects:
-            obj.vertex_groups.clear()
+
+        for obj in context.visible_objects:
+            if len(obj.data.polygons) <= 1:
+                bpy.data.objects.remove(obj)
 
         print("Cutting done with first method")
 
@@ -5059,145 +5219,6 @@ class BDENTAL_4D_OT_CurveCutterCut(bpy.types.Operator):
 
 
 #######################################################################################
-# CurveCutter_02
-class BDENTAL_4D_OT_CurveCutterAdd2(bpy.types.Operator):
-    """ description of this Operator """
-
-    bl_idname = "bdental4d.curvecutteradd2"
-    bl_label = "CURVE CUTTER ADD"
-    bl_options = {"REGISTER", "UNDO"}
-
-    def modal(self, context, event):
-
-        BDENTAL_4D_Props = context.scene.BDENTAL_4D_Props
-
-        if not event.type in {
-            "DEL",
-            "LEFTMOUSE",
-            "RET",
-            "ESC",
-        }:
-            # allow navigation
-
-            return {"PASS_THROUGH"}
-
-        elif event.type == ("DEL"):
-            if event.value == ("PRESS"):
-
-                DeleteLastCurvePoint()
-
-            return {"RUNNING_MODAL"}
-
-        elif event.type == ("LEFTMOUSE"):
-
-            if event.value == ("PRESS"):
-
-                return {"PASS_THROUGH"}
-
-            if event.value == ("RELEASE"):
-
-                ExtrudeCurvePointToCursor(context, event)
-
-        elif event.type == "RET":
-
-            if event.value == ("PRESS"):
-                CurveCutterName = BDENTAL_4D_Props.CurveCutterNameProp
-                CurveCutter = bpy.data.objects[CurveCutterName]
-                CurveCutter.select_set(True)
-                bpy.context.view_layer.objects.active = CurveCutter
-
-                bpy.ops.object.mode_set(mode="OBJECT")
-
-                if BDENTAL_4D_Props.CurveCutCloseMode == "Close Curve":
-                    bpy.ops.object.mode_set(mode="EDIT")
-                    bpy.ops.curve.cyclic_toggle()
-                    bpy.ops.object.mode_set(mode="OBJECT")
-
-                # bpy.ops.object.modifier_apply(apply_as="DATA", modifier="Shrinkwrap")
-
-                bpy.ops.wm.tool_set_by_id(name="builtin.select")
-                bpy.context.scene.tool_settings.use_snap = False
-                bpy.context.space_data.overlay.show_outline_selected = True
-
-                return {"FINISHED"}
-
-        elif event.type == ("ESC"):
-
-            if event.value == ("PRESS"):
-
-                CurveCutterName = bpy.context.scene.BDENTAL_4D_Props.CurveCutterNameProp
-                CurveCutter = bpy.data.objects[CurveCutterName]
-                bpy.ops.object.mode_set(mode="OBJECT")
-
-                bpy.ops.object.select_all(action="DESELECT")
-                CurveCutter.select_set(True)
-                bpy.context.view_layer.objects.active = CurveCutter
-                bpy.ops.object.delete(use_global=False, confirm=False)
-
-                CuttingTargetName = context.scene.BDENTAL_4D_Props.CuttingTargetNameProp
-                CuttingTarget = bpy.data.objects[CuttingTargetName]
-
-                bpy.ops.object.select_all(action="DESELECT")
-                CuttingTarget.select_set(True)
-                bpy.context.view_layer.objects.active = CuttingTarget
-
-                bpy.ops.wm.tool_set_by_id(name="builtin.select")
-                bpy.context.scene.tool_settings.use_snap = False
-                bpy.context.space_data.overlay.show_outline_selected = True
-
-                return {"CANCELLED"}
-
-        return {"RUNNING_MODAL"}
-
-    def invoke(self, context, event):
-
-        if bpy.context.selected_objects == []:
-
-            message = [" Please select the target object !"]
-            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
-
-            return {"CANCELLED"}
-
-        else:
-
-            if context.space_data.type == "VIEW_3D":
-
-                # Assign Model name to CuttingTarget property :
-                CuttingTarget = bpy.context.view_layer.objects.active
-                bpy.context.scene.BDENTAL_4D_Props.CuttingTargetNameProp = (
-                    CuttingTarget.name
-                )
-
-                bpy.ops.object.mode_set(mode="OBJECT")
-                bpy.ops.object.hide_view_clear()
-                bpy.ops.object.select_all(action="DESELECT")
-
-                # for obj in bpy.data.objects:
-                #     if "CuttingCurve" in obj.name:
-                #         obj.select_set(True)
-                #         bpy.ops.object.delete(use_global=False, confirm=False)
-
-                bpy.ops.object.select_all(action="DESELECT")
-                CuttingTarget.select_set(True)
-                bpy.context.view_layer.objects.active = CuttingTarget
-                # Hide everything but model :
-                bpy.ops.object.hide_view_set(unselected=True)
-
-                CuttingCurveAdd()
-                bpy.context.object.data.bevel_depth = 0.1
-                bpy.context.object.data.extrude = 0
-                bpy.context.object.data.offset = 0
-
-                context.window_manager.modal_handler_add(self)
-
-                return {"RUNNING_MODAL"}
-
-            else:
-
-                self.report({"WARNING"}, "Active space must be a View3d")
-
-                return {"CANCELLED"}
-
 
 ##################################################################
 
@@ -5325,6 +5346,166 @@ class BDENTAL_4D_OT_AddTube(bpy.types.Operator):
                     return {"CANCELLED"}
 
 
+#########################################################################################
+# CurveCutter_02
+class BDENTAL_4D_OT_CurveCutterAdd2(bpy.types.Operator):
+    """ description of this Operator """
+
+    bl_idname = "bdental4d.curvecutteradd2"
+    bl_label = "CURVE CUTTER ADD"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def modal(self, context, event):
+
+        BDENTAL_4D_Props = context.scene.BDENTAL_4D_Props
+
+        if not event.type in {
+            "DEL",
+            "LEFTMOUSE",
+            "RET",
+            "ESC",
+        }:
+            # allow navigation
+
+            return {"PASS_THROUGH"}
+
+        elif event.type == ("DEL"):
+            if event.value == ("PRESS"):
+
+                DeleteLastCurvePoint()
+
+            return {"RUNNING_MODAL"}
+
+        elif event.type == ("LEFTMOUSE"):
+
+            if event.value == ("PRESS"):
+
+                return {"PASS_THROUGH"}
+
+            if event.value == ("RELEASE"):
+
+                ExtrudeCurvePointToCursor(context, event)
+
+        elif event.type == "RET":
+
+            if event.value == ("PRESS"):
+                CuttingTargetName = BDENTAL_4D_Props.CuttingTargetNameProp
+                CuttingTarget = bpy.data.objects[CuttingTargetName]
+
+                CurveCutterName = BDENTAL_4D_Props.CurveCutterNameProp
+                CurveCutter = bpy.data.objects[CurveCutterName]
+
+                CurveCutter.select_set(True)
+                bpy.context.view_layer.objects.active = CurveCutter
+
+                bpy.ops.object.mode_set(mode="OBJECT")
+
+                if BDENTAL_4D_Props.CurveCutCloseMode == "Close Curve":
+                    bpy.ops.object.mode_set(mode="EDIT")
+                    bpy.ops.curve.cyclic_toggle()
+                    bpy.ops.object.mode_set(mode="OBJECT")
+
+                # bpy.ops.object.modifier_apply(apply_as="DATA", modifier="Shrinkwrap")
+
+                bpy.ops.wm.tool_set_by_id(name="builtin.select")
+                # bpy.context.scene.tool_settings.use_snap = False
+                bpy.context.space_data.overlay.show_outline_selected = True
+
+                bezier_points = CurveCutter.data.splines[0].bezier_points[:]
+                for i in range(len(bezier_points)):
+                    AddCurveSphere(
+                        Name=f"Hook_{i}",
+                        Curve=CurveCutter,
+                        i=i,
+                        CollName="BDENTAL-4D Cutters",
+                    )
+                bpy.context.space_data.overlay.show_relationship_lines = False
+                bpy.context.scene.tool_settings.use_snap = True
+                bpy.context.scene.tool_settings.snap_elements = {'FACE'}
+                bpy.context.scene.tool_settings.snap_target = 'CENTER'
+                bpy.ops.object.select_all(action="DESELECT")
+
+                CurveCutter.hide_select = True
+
+
+                return {"FINISHED"}
+
+        elif event.type == ("ESC"):
+
+            if event.value == ("PRESS"):
+
+                CurveCutterName = bpy.context.scene.BDENTAL_4D_Props.CurveCutterNameProp
+                CurveCutter = bpy.data.objects[CurveCutterName]
+                bpy.ops.object.mode_set(mode="OBJECT")
+
+                bpy.ops.object.select_all(action="DESELECT")
+                CurveCutter.select_set(True)
+                bpy.context.view_layer.objects.active = CurveCutter
+                bpy.ops.object.delete(use_global=False, confirm=False)
+
+                CuttingTargetName = context.scene.BDENTAL_4D_Props.CuttingTargetNameProp
+                CuttingTarget = bpy.data.objects[CuttingTargetName]
+
+                bpy.ops.object.select_all(action="DESELECT")
+                CuttingTarget.select_set(True)
+                bpy.context.view_layer.objects.active = CuttingTarget
+
+                bpy.ops.wm.tool_set_by_id(name="builtin.select")
+                bpy.context.scene.tool_settings.use_snap = False
+                bpy.context.space_data.overlay.show_outline_selected = True
+                bpy.context.space_data.overlay.show_relationship_lines = False
+
+                return {"CANCELLED"}
+
+        return {"RUNNING_MODAL"}
+
+    def invoke(self, context, event):
+
+        if bpy.context.selected_objects == []:
+
+            message = [" Please select the target object !"]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+
+            return {"CANCELLED"}
+
+        else:
+
+            if context.space_data.type == "VIEW_3D":
+
+                # Assign Model name to CuttingTarget property :
+                CuttingTarget = bpy.context.view_layer.objects.active
+                bpy.context.scene.BDENTAL_4D_Props.CuttingTargetNameProp = (
+                    CuttingTarget.name
+                )
+
+                bpy.ops.object.mode_set(mode="OBJECT")
+                bpy.ops.object.hide_view_clear()
+                bpy.ops.object.select_all(action="DESELECT")
+
+                # for obj in bpy.data.objects:
+                #     if "CuttingCurve" in obj.name:
+                #         obj.select_set(True)
+                #         bpy.ops.object.delete(use_global=False, confirm=False)
+
+                bpy.ops.object.select_all(action="DESELECT")
+                CuttingTarget.select_set(True)
+                bpy.context.view_layer.objects.active = CuttingTarget
+                # Hide everything but model :
+                bpy.ops.object.hide_view_set(unselected=True)
+
+                CuttingCurveAdd2()
+
+                context.window_manager.modal_handler_add(self)
+
+                return {"RUNNING_MODAL"}
+
+            else:
+
+                self.report({"WARNING"}, "Active space must be a View3d")
+
+                return {"CANCELLED"}
+
+
 ################################################################################
 class BDENTAL_4D_OT_CurveCutter2_ShortPath(bpy.types.Operator):
     " Shortpath Curve Cutting tool"
@@ -5332,142 +5513,474 @@ class BDENTAL_4D_OT_CurveCutter2_ShortPath(bpy.types.Operator):
     bl_idname = "bdental4d.curvecutter2_shortpath"
     bl_label = "ShortPath"
 
+    Resolution: IntProperty(
+        name="Cut Resolution",
+        description="Cutting curve Resolution",
+        default=3,
+    )
+
     def execute(self, context):
 
-        t0 = Tcounter()
+        start = Tcounter()
+        BDENTAL_4D_Props = bpy.context.scene.BDENTAL_4D_Props
         ###########################################################################
+        if bpy.context.mode != "OBJECT":
+            bpy.ops.object.mode_set(mode="OBJECT")
+        
+        # Get CuttingTarget :
+        CuttingTargetName = BDENTAL_4D_Props.CuttingTargetNameProp
+        CuttingTarget = bpy.data.objects[CuttingTargetName]
+        CuttingTarget.hide_select = False
+        # delete old vertex groups :
+        CuttingTarget.vertex_groups.clear()
+        # Get CurveCutter :
+        CurveCuttersList = [obj for obj in bpy.data.objects if 'BDENTAL4D_Curve_Cut2' in obj.name]
+
+        CurveMeshesList = []
+        for CurveCutter in CurveCuttersList:
+            CurveCutter.hide_select = False
+            bpy.ops.object.select_all(action="DESELECT")
+            CurveCutter.select_set(True)
+            bpy.context.view_layer.objects.active = CurveCutter
+
+            HookModifiers = [mod.name for mod in CurveCutter.modifiers if 'Hook' in mod.name]
+            for mod in HookModifiers :
+                bpy.ops.object.modifier_apply(modifier=mod)
+
+            CurveCutter.data.bevel_depth = 0
+            CurveCutter.data.resolution_u = self.Resolution
+            bpy.ops.object.modifier_apply(modifier="Shrinkwrap")
+
+            bpy.ops.object.convert(target="MESH")
+            CurveCutter = context.object
+            bpy.ops.object.modifier_add(type="SHRINKWRAP")
+            CurveCutter.modifiers["Shrinkwrap"].target = CuttingTarget
+            bpy.ops.object.convert(target='MESH')
+
+            CurveMesh = context.object
+            CurveMeshesList.append(CurveMesh)
+
+        bpy.ops.object.select_all(action="DESELECT")
+        CuttingTarget.select_set(True)
+        bpy.context.view_layer.objects.active = CuttingTarget
+        me = CuttingTarget.data
+        # initiate a KDTree :
+        size = len(me.vertices)
+        kd = kdtree.KDTree(size)
+
+        for v_id, v in enumerate(me.vertices):
+            kd.insert(v.co, v_id)
+
+        kd.balance()
+        Loop = []
+        for CurveCutter in CurveMeshesList:
+            
+            CutterCoList = [CuttingTarget.matrix_world.inverted() @ CurveCutter.matrix_world @ v.co for v in CurveCutter.data.vertices]
+            Closest_VIDs = [ kd.find(CutterCoList[i])[1] for i in range(len(CutterCoList))]
+            print('Get closest verts list done')
+            if BDENTAL_4D_Props.CurveCutCloseMode == 'Close Curve' :
+                CloseState = True
+            else :
+                CloseState = False
+            CutLine = ShortestPath(CuttingTarget, Closest_VIDs, close=CloseState)
+            Loop.extend(CutLine)
+
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.mesh.select_all(action='DESELECT')
+
+        bpy.ops.object.mode_set(mode="OBJECT")
+        for Id in Loop :
+            me.vertices[Id].select = True
+
+        print("Cut Line selected...")
+
+        bpy.ops.object.mode_set(mode="EDIT")
+        vg = CuttingTarget.vertex_groups.new(name="intersect_vgroup")
+        bpy.ops.object.vertex_group_assign()
+
+        print("Shrinkwrap Modifier...")
+        bpy.ops.object.mode_set(mode="OBJECT")
+        bpy.ops.object.select_all(action="DESELECT")
+        for CurveCutter in CurveMeshesList:
+            CurveCutter.select_set(True)
+            bpy.context.view_layer.objects.active = CurveCutter
+        
+        if len(CurveMeshesList)>1:
+            bpy.ops.object.join()
+
+        CurveCutter = context.object
+
+        bpy.ops.object.mode_set(mode="OBJECT")
+        bpy.ops.object.select_all(action="DESELECT")
+        CuttingTarget.select_set(True)
+        bpy.context.view_layer.objects.active = CuttingTarget
+
+        bpy.ops.object.modifier_add(type="SHRINKWRAP")
+        CuttingTarget.modifiers["Shrinkwrap"].wrap_method = "NEAREST_VERTEX"
+        CuttingTarget.modifiers["Shrinkwrap"].vertex_group = vg.name
+        CuttingTarget.modifiers["Shrinkwrap"].target = CurveCutter
+        bpy.ops.object.modifier_apply(modifier="Shrinkwrap")
+
+        print("Relax Cut Line...")
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.mesh.looptools_relax(
+            input="selected", interpolation="cubic", iterations="3", regular=True
+        )
+
+        print("Split Cut Line...")
+        # bpy.ops.object.mode_set(mode="OBJECT")
+        # Hiden = [v for v in me.vertices if v.select]
+        # bpy.ops.object.mode_set(mode="EDIT")
+        # bpy.ops.mesh.hide(unselected=False)
+        # bpy.ops.object.mode_set(mode="OBJECT")
+        # Visible = [v for v in me.vertices if not v in Hiden]
+        # Visible[0].select = True
+        # bpy.ops.object.mode_set(mode="EDIT")
+        # bpy.ops.mesh.select_linked(delimit=set())
+        # bpy.ops.mesh.reveal()
+        # bpy.ops.mesh.separate(type="SELECTED")
+
+        # Split :
+        SplitSeparator(CuttingTarget=CuttingTarget)
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.mesh.select_all(action="DESELECT")
+        
+
+        print("Remove Cutter tool...")
+        bpy.ops.object.mode_set(mode="OBJECT")
+        bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='MEDIAN')
+        for obj in context.visible_objects:
+            if (
+                obj.type == "MESH"
+                and len(obj.data.polygons) <= 10
+            ):
+                bpy.data.objects.remove(obj)
+        col = bpy.data.collections['BDENTAL-4D Cutters']
+        for obj in col.objects :
+            bpy.data.objects.remove(obj)
+        bpy.data.collections.remove(col)
+
+        finish = Tcounter()
+        print("finished in : ", finish - start, "secondes")
+        return {"FINISHED"}
+
+    def invoke(self, context, event):
+
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
+
+
+
+# CurveCutter_03
+class BDENTAL_4D_OT_CurveCutterAdd3(bpy.types.Operator):
+    """ description of this Operator """
+
+    bl_idname = "bdental4d.curvecutteradd3"
+    bl_label = "CURVE CUTTER ADD"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def modal(self, context, event):
+
+        BDENTAL_4D_Props = context.scene.BDENTAL_4D_Props
+
+        if not event.type in {
+            "DEL",
+            "LEFTMOUSE",
+            "RET",
+            "ESC",
+        }:
+            # allow navigation
+
+            return {"PASS_THROUGH"}
+
+        elif event.type == ("DEL"):
+            if event.value == ("PRESS"):
+
+                DeleteLastCurvePoint()
+
+            return {"RUNNING_MODAL"}
+
+        elif event.type == ("LEFTMOUSE"):
+
+            if event.value == ("PRESS"):
+
+                return {"PASS_THROUGH"}
+
+            if event.value == ("RELEASE"):
+
+                ExtrudeCurvePointToCursor(context, event)
+
+        elif event.type == "RET":
+
+            if event.value == ("PRESS"):
+                CurveCutterName = BDENTAL_4D_Props.CurveCutterNameProp
+                CurveCutter = bpy.data.objects[CurveCutterName]
+                CurveCutter.select_set(True)
+                bpy.context.view_layer.objects.active = CurveCutter
+
+                bpy.ops.object.mode_set(mode="OBJECT")
+
+                if BDENTAL_4D_Props.CurveCutCloseMode == "Close Curve":
+                    bpy.ops.object.mode_set(mode="EDIT")
+                    bpy.ops.curve.cyclic_toggle()
+                    bpy.ops.object.mode_set(mode="OBJECT")
+
+                # bpy.ops.object.modifier_apply(apply_as="DATA", modifier="Shrinkwrap")
+
+                bpy.ops.wm.tool_set_by_id(name="builtin.select")
+                # bpy.context.scene.tool_settings.use_snap = False
+                bpy.context.space_data.overlay.show_outline_selected = True
+
+                bezier_points = CurveCutter.data.splines[0].bezier_points[:]
+                for i in range(len(bezier_points)):
+                    AddCurveSphere(
+                        Name=f"Hook_{i}",
+                        Curve=CurveCutter,
+                        i=i,
+                        CollName="BDENTAL-4D Cutters",
+                    )
+                bpy.context.space_data.overlay.show_relationship_lines = False
+
+                return {"FINISHED"}
+
+        elif event.type == ("ESC"):
+
+            if event.value == ("PRESS"):
+
+                CurveCutterName = bpy.context.scene.BDENTAL_4D_Props.CurveCutterNameProp
+                CurveCutter = bpy.data.objects[CurveCutterName]
+                bpy.ops.object.mode_set(mode="OBJECT")
+
+                bpy.ops.object.select_all(action="DESELECT")
+                CurveCutter.select_set(True)
+                bpy.context.view_layer.objects.active = CurveCutter
+                bpy.ops.object.delete(use_global=False, confirm=False)
+
+                CuttingTargetName = context.scene.BDENTAL_4D_Props.CuttingTargetNameProp
+                CuttingTarget = bpy.data.objects[CuttingTargetName]
+
+                bpy.ops.object.select_all(action="DESELECT")
+                CuttingTarget.select_set(True)
+                bpy.context.view_layer.objects.active = CuttingTarget
+
+                bpy.ops.wm.tool_set_by_id(name="builtin.select")
+                bpy.context.scene.tool_settings.use_snap = True
+                bpy.context.space_data.overlay.show_outline_selected = True
+                bpy.context.scene.tool_settings.snap_target = "CENTER"
+                bpy.context.scene.tool_settings.snap_elements = {"FACE"}
+                bpy.context.space_data.overlay.show_relationship_lines = False
+
+                return {"CANCELLED"}
+
+        return {"RUNNING_MODAL"}
+
+    def invoke(self, context, event):
+
+        if bpy.context.selected_objects == []:
+
+            message = [" Please select the target object !"]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+
+            return {"CANCELLED"}
+
+        else:
+
+            if context.space_data.type == "VIEW_3D":
+
+                # Assign Model name to CuttingTarget property :
+                CuttingTarget = bpy.context.view_layer.objects.active
+                bpy.context.scene.BDENTAL_4D_Props.CuttingTargetNameProp = (
+                    CuttingTarget.name
+                )
+
+                bpy.ops.object.mode_set(mode="OBJECT")
+                bpy.ops.object.hide_view_clear()
+                bpy.ops.object.select_all(action="DESELECT")
+
+                # for obj in bpy.data.objects:
+                #     if "CuttingCurve" in obj.name:
+                #         obj.select_set(True)
+                #         bpy.ops.object.delete(use_global=False, confirm=False)
+
+                bpy.ops.object.select_all(action="DESELECT")
+                CuttingTarget.select_set(True)
+                bpy.context.view_layer.objects.active = CuttingTarget
+                # Hide everything but model :
+                bpy.ops.object.hide_view_set(unselected=True)
+
+                CuttingCurveAdd2()
+
+                context.window_manager.modal_handler_add(self)
+
+                return {"RUNNING_MODAL"}
+
+            else:
+
+                self.report({"WARNING"}, "Active space must be a View3d")
+
+                return {"CANCELLED"}
+
+
+class BDENTAL_4D_OT_CurveCutterCut3(bpy.types.Operator):
+    " Performe Curve Cutting Operation"
+
+    bl_idname = "bdental4d.curvecuttercut3"
+    bl_label = "CURVE CUTTER CUT"
+
+    def execute(self, context):
+
         # Get CuttingTarget :
         CuttingTargetName = bpy.context.scene.BDENTAL_4D_Props.CuttingTargetNameProp
         CuttingTarget = bpy.data.objects[CuttingTargetName]
 
         # Get CurveCutter :
-        CurveCutterName = bpy.context.scene.BDENTAL_4D_Props.CurveCutterNameProp
-        CurveCutter = bpy.data.objects[CurveCutterName]
-
-        if bpy.context.mode != "OBJECT":
-            bpy.ops.object.mode_set(mode="OBJECT")
-
         bpy.ops.object.select_all(action="DESELECT")
-        CurveCutter.select_set(True)
-        bpy.context.view_layer.objects.active = CurveCutter
 
-        # subdivide curve points :
-        bpy.ops.object.mode_set(mode="EDIT")
-        bpy.ops.curve.select_all(action="SELECT")
-        bpy.ops.curve.subdivide()
-        bpy.ops.object.mode_set(mode="OBJECT")
-
-        bpy.ops.object.select_all(action="DESELECT")
-        CuttingTarget.select_set(True)
-        bpy.context.view_layer.objects.active = CuttingTarget
-        bpy.ops.object.hide_view_set(unselected=True)
-
-        # curve control points coordinates relative to mesh obj local coord :
-        CurveCoList = CutterPointsList(CurveCutter, CuttingTarget)
-        # list of mesh verts IDs that are closest to curve points :
-        Closest_VIDs = [
-            ClosestVerts(i, CurveCoList, CuttingTarget) for i in range(len(CurveCoList))
+        CurveCuttersList = [
+            obj
+            for obj in context.visible_objects
+            if obj.type == "CURVE" and obj.name.startswith("BDENTAL4D_Curve_Cut")
         ]
 
-        path = Closest_VIDs.copy()
-        path.append(Closest_VIDs[0])
-        n = len(Closest_VIDs)
-        loop = []
+        if not CurveCuttersList:
 
-        for i in range(n):
+            message = [
+                " Can't find curve Cutters ",
+                "Please ensure curve Cutters are not hiden !",
+            ]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
 
+            return {"CANCELLED"}
+
+        if CurveCuttersList:
+            CurveMeshesList = []
+            for CurveCutter in CurveCuttersList:
+                bpy.ops.object.select_all(action="DESELECT")
+                CurveCutter.select_set(True)
+                bpy.context.view_layer.objects.active = CurveCutter
+
+                # remove material :
+                for _ in CurveCutter.material_slots:
+                    bpy.ops.object.material_slot_remove()
+
+                # Change CurveCutter setting   :
+                CurveCutter.data.bevel_depth = 0
+                CurveCutter.data.resolution_u = 6
+
+                # Add shrinkwrap modif outside :
+                bpy.ops.object.modifier_add(type="SHRINKWRAP")
+                CurveCutter.modifiers["Shrinkwrap"].use_apply_on_spline = True
+                CurveCutter.modifiers["Shrinkwrap"].target = CuttingTarget
+                CurveCutter.modifiers["Shrinkwrap"].offset = 0.5
+                CurveCutter.modifiers["Shrinkwrap"].wrap_mode = "OUTSIDE"
+
+                # duplicate curve :
+                bpy.ops.object.duplicate_move()
+                CurveCutterDupli = context.object
+                CurveCutterDupli.modifiers["Shrinkwrap"].wrap_mode = "INSIDE"
+                CurveCutterDupli.modifiers["Shrinkwrap"].offset = 0.8
+
+                IntOut = []
+                for obj in [CurveCutter, CurveCutterDupli]:
+                    # convert CurveCutter to mesh :
+                    bpy.ops.object.mode_set(mode="OBJECT")
+                    bpy.ops.object.select_all(action="DESELECT")
+                    obj.select_set(True)
+                    bpy.context.view_layer.objects.active = obj
+                    bpy.ops.object.convert(target="MESH")
+                    CurveMesh = context.object
+                    IntOut.append(CurveMesh)
+
+                bpy.ops.object.select_all(action="DESELECT")
+                for obj in IntOut:
+                    obj.select_set(True)
+                    bpy.context.view_layer.objects.active = obj
+                bpy.ops.object.join()
+                bpy.ops.object.mode_set(mode="EDIT")
+                bpy.ops.mesh.select_all(action="SELECT")
+                bpy.ops.mesh.bridge_edge_loops()
+                bpy.ops.object.mode_set(mode="OBJECT")
+                CurveMeshesList.append(context.object)
+
+            bpy.ops.object.select_all(action="DESELECT")
+            for obj in CurveMeshesList:
+                obj.select_set(True)
+                bpy.context.view_layer.objects.active = obj
+
+            if len(CurveMeshesList) > 1:
+                bpy.ops.object.join()
+
+            CurveCutter = context.object
+
+            CurveCutter.select_set(True)
+            bpy.context.view_layer.objects.active = CurveCutter
+
+            bpy.context.scene.tool_settings.use_snap = False
+            bpy.ops.view3d.snap_cursor_to_center()
+
+            # # Make vertex group :
+            bpy.ops.object.mode_set(mode="EDIT")
+            bpy.context.tool_settings.mesh_select_mode = (True, False, False)
+            bpy.ops.mesh.select_all(action="SELECT")
+            curve_vgroup = CurveCutter.vertex_groups.new(name="curve_vgroup")
+            bpy.ops.object.vertex_group_assign()
+            bpy.ops.object.mode_set(mode="OBJECT")
+
+            # select CuttingTarget :
+            bpy.ops.object.select_all(action="DESELECT")
+            CuttingTarget.select_set(True)
+            bpy.context.view_layer.objects.active = CuttingTarget
+
+            # delete old vertex groups :
+            CuttingTarget.vertex_groups.clear()
+
+            # deselect all vertices :
             bpy.ops.object.mode_set(mode="EDIT")
             bpy.ops.mesh.select_mode(type="VERT")
+            bpy.ops.mesh.select_all(action="SELECT")
+            bpy.ops.mesh.normals_make_consistent(inside=False)
             bpy.ops.mesh.select_all(action="DESELECT")
             bpy.ops.object.mode_set(mode="OBJECT")
 
-            V0 = CuttingTarget.data.vertices[path[i]]
-            V1 = CuttingTarget.data.vertices[path[i + 1]]
-            V0.select = True
-            V1.select = True
+            ###############################################################
+
+            # Join CurveCutter to CuttingTarget :
+            CurveCutter.select_set(True)
+            bpy.ops.object.join()
+            bpy.ops.object.hide_view_set(unselected=True)
+
+            # intersect make vertex group :
             bpy.ops.object.mode_set(mode="EDIT")
-            bpy.ops.mesh.shortest_path_select()
-            bpy.ops.object.mode_set(mode="OBJECT")
-            Selected_Verts = [
-                v.index
-                for v in CuttingTarget.data.vertices
-                if v.select and v.index != path[i + 1]
-            ]
-            loop.extend(Selected_Verts)
+            bpy.ops.mesh.select_mode(type="VERT")
+            bpy.ops.mesh.intersect()
 
-        bpy.ops.object.mode_set(mode="EDIT")
-        bpy.ops.mesh.select_all(action="DESELECT")
-        bpy.ops.object.mode_set(mode="OBJECT")
+            intersect_vgroup = CuttingTarget.vertex_groups.new(name="intersect_vgroup")
+            CuttingTarget.vertex_groups.active_index = intersect_vgroup.index
+            bpy.ops.object.vertex_group_assign()
 
-        for v_id in loop:
-            CuttingTarget.data.vertices[v_id].select = True
+            # # delete curve_vgroup :
+            # bpy.ops.object.mode_set(mode="EDIT")
+            # bpy.ops.mesh.select_all(action="DESELECT")
+            # curve_vgroup = CuttingTarget.vertex_groups["curve_vgroup"]
 
-        bpy.ops.object.mode_set(mode="EDIT")
-        bpy.ops.mesh.looptools_relax(
-            input="selected", interpolation="cubic", iterations="5", regular=True
-        )
-        # delete old vertex groups :
-        CuttingTarget.vertex_groups.clear()
-        intersect_vgroup = CuttingTarget.vertex_groups.new(name="intersect_vgroup")
-        bpy.ops.object.vertex_group_assign()
+            # CuttingTarget.vertex_groups.active_index = curve_vgroup.index
+            # bpy.ops.object.vertex_group_select()
+            # bpy.ops.mesh.delete(type="FACE")
 
-        # 1st methode :
-        SplitSeparator(CuttingTarget=CuttingTarget)
+            # bpy.ops.ed.undo_push()
+            # # 1st methode :
+            # SplitSeparator(CuttingTarget=CuttingTarget)
 
-        # # Filtring loose parts :
-        # resulting_parts = PartsFilter()
-        # print(resulting_parts)
+            # for obj in context.visible_objects:
+            #     if len(obj.data.polygons) <= 10:
+            #         bpy.data.objects.remove(obj)
+            # for obj in context.visible_objects:
+            #     if obj.name.startswith("Hook"):
+            #         bpy.data.objects.remove(obj)
 
-        # if resulting_parts > 1:
-        #     for obj in bpy.context.visible_objects:
-        #         obj.vertex_groups.clear()
+            # print("Cutting done with first method")
 
-        #     print("Cutting done with first method")
-
-        # else:
-
-        #     # Get CuttingTarget :
-        #     CuttingTargetName = bpy.context.scene.BDENTAL_4D_Props.CuttingTargetNameProp
-        #     CuttingTarget = bpy.data.objects[CuttingTargetName]
-        #     CuttingTarget.select_set(True)
-        #     bpy.context.view_layer.objects.active = CuttingTarget
-
-        #     bol = True
-
-        #     while bol:
-        #         bol = IterateSeparator()
-
-        #     # Filtring loose parts :
-        #     resulting_parts = PartsFilter()
-        #     print("Cutting done with second method")
-
-        #     bpy.ops.object.select_all(action="DESELECT")
-        #     ob = bpy.context.visible_objects[-1]
-        #     ob.select_set(True)
-        #     bpy.context.view_layer.objects.active = ob
-        #     bpy.ops.wm.tool_set_by_id(name="builtin.select")
-
-        return {"FINISHED"}
-
-    #     bol = True
-
-    #     while bol:
-    #         bol = IterateSeparator()
-
-    #     # Filtring loose parts :
-    #     resulting_parts = PartsFilter()
-    #     print("Cutting done with second method")
-
-    #     bpy.ops.object.select_all(action="DESELECT")
-    #     ob = bpy.context.visible_objects[-1]
-    #     ob.select_set(True)
-    #     bpy.context.view_layer.objects.active = ob
-    #     bpy.ops.wm.tool_set_by_id(name="builtin.select")
-
-    #     t1 = Tcounter()
-    #     print(f"FINISHED in {t1-t0} secondes")
-
-    # return {"FINISHED"}
+            return {"FINISHED"}
 
 
 #######################################################################################
@@ -5588,7 +6101,6 @@ class BDENTAL_4D_OT_square_cut_confirm(bpy.types.Operator):
                 bpy.ops.object.mode_set(mode="EDIT")
                 bpy.ops.mesh.select_all(action="SELECT")
                 bpy.ops.mesh.normals_make_consistent(inside=False)
-                bpy.ops.mesh.fill_holes()
                 bpy.ops.mesh.select_all(action="DESELECT")
                 bpy.ops.object.mode_set(mode="OBJECT")
 
@@ -5888,12 +6400,15 @@ classes = [
     BDENTAL_4D_OT_OcclusalPlaneInfo,
     BDENTAL_4D_OT_decimate,
     BDENTAL_4D_OT_clean_mesh,
+    BDENTAL_4D_OT_clean_mesh2,
     BDENTAL_4D_OT_fill,
     BDENTAL_4D_OT_retopo_smooth,
     BDENTAL_4D_OT_VoxelRemesh,
     BDENTAL_4D_OT_CurveCutterAdd,
     BDENTAL_4D_OT_CurveCutterAdd2,
+    BDENTAL_4D_OT_CurveCutterAdd3,
     BDENTAL_4D_OT_CurveCutterCut,
+    BDENTAL_4D_OT_CurveCutterCut3,
     BDENTAL_4D_OT_CurveCutter2_ShortPath,
     BDENTAL_4D_OT_square_cut,
     BDENTAL_4D_OT_square_cut_confirm,

@@ -1,8 +1,8 @@
 # Python imports :
 import os, sys, shutil, threading
 from os.path import join, dirname, exists, abspath
-
-from math import degrees, radians, pi, ceil, floor
+import math
+from math import degrees, radians, pi, ceil, floor, acos
 import numpy as np
 from numpy.linalg import svd
 from time import sleep, perf_counter as Tcounter
@@ -270,20 +270,21 @@ def AddNode(nodes, type, name):
 
 def AddFrankfortPoint(PointsList, color, CollName):
     FrankfortPointsNames = ["R_Or", "L_Or", "R_Po", "L_Po"]
+    Loc = bpy.context.scene.cursor.location
     if not PointsList:
-        P = AddMarkupPoint(FrankfortPointsNames[0], color, CollName)
+        P = AddMarkupPoint(FrankfortPointsNames[0], color, Loc, 1, CollName)
         return P
     if PointsList:
         CurrentPointsNames = [P.name for P in PointsList]
         P_Names = [P for P in FrankfortPointsNames if not P in CurrentPointsNames]
         if P_Names:
-            P = AddMarkupPoint(P_Names[0], color, CollName)
+            P = AddMarkupPoint(P_Names[0], color, Loc, 1, CollName)
             return P
     else:
         return None
 
 
-def AddMarkupPoint(name, color, loc, Diameter=1, CollName=None):
+def AddMarkupPoint(name, color, loc, Diameter=1, CollName=None, show_name=False):
 
     bpy.ops.mesh.primitive_uv_sphere_add(radius=Diameter / 2, location=loc)
     P = bpy.context.object
@@ -298,7 +299,7 @@ def AddMarkupPoint(name, color, loc, Diameter=1, CollName=None):
     mat.diffuse_color = color
     mat.use_nodes = False
     P.active_material = mat
-    P.show_name = True
+    P.show_name = show_name
     return P
 
 
@@ -1966,6 +1967,33 @@ def progress_bar(pourcentage, Uptxt, Lowtxt="", Title="BDENTAL_4D", Delay=1):
 ######################################################
 # BDENTAL_4D Meshes Tools Operators...........
 ######################################################
+def AddCurveSphere(Name, Curve, i, CollName):
+    bpy.ops.object.mode_set(mode="OBJECT")
+    bpy.ops.object.select_all(action="DESELECT")
+    bezier_points = Curve.data.splines[0].bezier_points[:]
+    Bpt = bezier_points[i]
+    loc = Curve.matrix_world @ Bpt.co
+    AddMarkupPoint(
+        name=Name, color=(0, 1, 0, 1), loc=loc, Diameter=0.5, CollName=CollName
+    )
+    Hook = bpy.context.object
+    bpy.ops.object.mode_set(mode="OBJECT")
+    bpy.ops.object.select_all(action="DESELECT")
+    Hook.select_set(True)
+    Curve.select_set(True)
+    bpy.context.view_layer.objects.active = Curve
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.curve.select_all(action="DESELECT")
+    bezier_points = Curve.data.splines[0].bezier_points[:]
+    Bpt = bezier_points[i]
+    Bpt.select_control_point = True
+    bpy.ops.object.hook_add_selob(use_bone=False)
+    bpy.ops.object.mode_set(mode="OBJECT")
+    bpy.ops.object.select_all(action="DESELECT")
+    Curve.select_set(True)
+    bpy.context.view_layer.objects.active = Curve
+
+
 def CuttingCurveAdd():
 
     # Prepare scene settings :
@@ -1987,13 +2015,15 @@ def CuttingCurveAdd():
     curve = CurveCutter.data
     curve.name = "BDENTAL4D_Curve_Cut1"
     bpy.context.scene.BDENTAL_4D_Props.CurveCutterNameProp = CurveCutter.name
-
+    MoveToCollection(CurveCutter, "BDENTAL-4D Cutters")
     # CurveCutter settings :
     bpy.ops.object.mode_set(mode="EDIT")
     bpy.ops.curve.select_all(action="DESELECT")
     curve.splines[0].bezier_points[-1].select_control_point = True
     bpy.ops.curve.dissolve_verts()
-    bpy.ops.curve.select_all(action="SELECT")
+    B0_Point = curve.splines[0].bezier_points[0]
+    B0_Point.select_control_point = True
+    # bpy.ops.curve.select_all(action="SELECT")
     bpy.ops.view3d.snap_selected_to_cursor(use_offset=False)
 
     bpy.context.object.data.dimensions = "3D"
@@ -2148,10 +2178,6 @@ def CuttingCurveAdd2():
     curve = CurveCutter.data
     curve.name = "BDENTAL4D_Curve_Cut2"
     bpy.context.scene.BDENTAL_4D_Props.CurveCutterNameProp = CurveCutter.name
-    # Add Sphere :
-    bpy.ops.mesh.primitive_uv_sphere_add(
-        radius=0.3, location=bpy.context.scene.cursor.location
-    )
 
     # CurveCutter settings :
     bpy.ops.object.mode_set(mode="EDIT")
@@ -2164,8 +2190,8 @@ def CuttingCurveAdd2():
     bpy.context.object.data.dimensions = "3D"
     bpy.context.object.data.twist_smooth = 3
     bpy.ops.curve.handle_type_set(type="AUTOMATIC")
-    bpy.context.object.data.bevel_depth = 0.05
-    bpy.context.object.data.bevel_resolution = 10
+    bpy.context.object.data.bevel_depth = 0.1
+    bpy.context.object.data.bevel_resolution = 6
     bpy.context.scene.tool_settings.curve_paint_settings.error_threshold = 1
     bpy.context.scene.tool_settings.curve_paint_settings.corner_angle = 0.785398
     # bpy.context.scene.tool_settings.curve_paint_settings.corner_angle = 1.5708
@@ -2190,6 +2216,8 @@ def CuttingCurveAdd2():
     bpy.context.object.modifiers["Shrinkwrap"].wrap_mode = "ABOVE_SURFACE"
     bpy.context.object.modifiers["Shrinkwrap"].use_apply_on_spline = True
 
+    MoveToCollection(CurveCutter, "BDENTAL-4D Cutters")
+
 
 #######################################################################################
 def DeleteLastCurvePoint():
@@ -2210,6 +2238,7 @@ def DeleteLastCurvePoint():
         points[-1].select_control_point = True
         points = curve.splines[0].bezier_points[:]
         if len(points) > 1:
+
             bpy.ops.curve.delete(type="VERT")
             points = curve.splines[0].bezier_points[:]
             bpy.ops.curve.select_all(action="SELECT")
@@ -2244,6 +2273,7 @@ def ExtrudeCurvePointToCursor(context, event):
 #######################################################################################
 # 1st separate method function :
 def SplitSeparator(CuttingTarget):
+    bpy.ops.object.mode_set(mode="EDIT")
     bpy.ops.mesh.select_all(action="DESELECT")
     intersect_vgroup = CuttingTarget.vertex_groups["intersect_vgroup"]
     CuttingTarget.vertex_groups.active_index = intersect_vgroup.index
@@ -2384,6 +2414,21 @@ def ClosestVerts(i, CurveCoList, obj):
     v_co, v_id, dist = kd.find(CurveCoList[i])
 
     return v_id
+
+
+def ClosestVertToPoint(Point, obj):
+
+    # initiate a KDTree :
+    size = len(obj.data.vertices)
+    kd = kdtree.KDTree(size)
+
+    for v_id, v in enumerate(obj.data.vertices):
+        kd.insert(v.co, v_id)
+
+    kd.balance()
+    v_co, v_id, dist = kd.find(Point)
+
+    return v_id, v_co, dist
 
 
 # Add square cutter function :
@@ -4384,3 +4429,97 @@ def Add_2D_BlfText(
             area.tag_redraw()
 
     return _Handler
+
+
+###################################################################
+def Angle(v1, v2):
+    dot_product = v1.normalized().dot(v2.normalized())
+    Angle = degrees(acos(dot_product))
+    return Angle
+
+
+def Linked_Edges_Verts(v, mesh):
+    Edges = [e for e in mesh.edges if v.index in e.vertices]
+    Link_Verts = [
+        mesh.vertices[idx] for e in Edges for idx in e.vertices if idx != v.index
+    ]
+    return Edges, Link_Verts
+
+
+def ShortPath2(obj, Vid_List, close=True):
+    mesh = obj.data
+    zipList = list(zip(Vid_List, Vid_List[1:] + [Vid_List[0]]))
+
+    Tuples = zipList
+    if not close:
+        Tuples = zipList[:-1]
+    LoopIds = []
+    for i, t in enumerate(Tuples):
+        v0, v1 = mesh.vertices[t[0]], mesh.vertices[t[1]]
+        LoopIds.append(v0.index)
+
+        while True:
+            CurrentID = LoopIds[-1]
+            
+            V_current = mesh.vertices[CurrentID]
+            TargetVector = v1.co - V_current.co
+            edges, verts = Linked_Edges_Verts(V_current, mesh)
+            if verts:
+                if v1 in verts:
+                    LoopIds.append(v1.index)
+                    break
+                else:
+
+                    v = min(
+                        [
+                            (abs(Angle(v.co - V_current.co, TargetVector)), v)
+                            for v in verts
+                        ]
+                    )[1]
+                    LoopIds.append(v.index)
+                    print(v.index)
+            else:
+                break
+
+    return LoopIds
+
+def ShortestPath(obj, VidList, close=True) :
+    
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.context.tool_settings.mesh_select_mode = (True, False, False)
+    bpy.ops.mesh.select_all(action='DESELECT') 
+    
+    me = obj.data
+    bm = bmesh.from_edit_mesh(me)
+    bm.verts.ensure_lookup_table()
+    
+    Ids = VidList
+    zipList = list(zip( Ids, Ids[1:]+[Ids[0]]))
+    Ids_Tuples = zipList
+    if not close:
+        Ids_Tuples = zipList[:-1]
+    
+    Path = []
+    
+    for i,Ids in enumerate(Ids_Tuples):
+        Path.append(Ids[0])
+        bpy.ops.mesh.select_all(action='DESELECT')
+        for id in Ids :
+            bm.verts[id].select_set(True)
+        select = [v.index for v in bm.verts if v.select]
+        if len(select)>1:
+            bpy.ops.mesh.shortest_path_select()
+        select = [v.index for v in bm.verts if v.select]
+        Path.extend(select)
+        print(f'loop ({i}/{len(Ids_Tuples)}) processed ...')
+       
+            
+    bpy.ops.mesh.select_all(action='DESELECT')
+    bpy.ops.object.mode_set(mode="OBJECT")
+    for id in Path :
+        me.vertices[id].select = True
+    CutLine = [v.index for v in me.vertices if v.select]
+    print(f"selected verts : {len(CutLine)}")
+
+    return CutLine
+    

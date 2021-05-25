@@ -403,6 +403,7 @@ class BDENTAL_4D_Props(bpy.types.PropertyGroup):
     Cutting_Tools_Types = [
         "Curve Cutter 1",
         "Curve Cutter 2",
+        "Curve Cutter 3",
         "Square Cutter",
         "Paint Cutter",
     ]

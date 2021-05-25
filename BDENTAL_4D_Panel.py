@@ -122,9 +122,8 @@ class BDENTAL_4D_PT_ScanPanel(bpy.types.Panel):
                     row.scale_y = 2
                     row.operator("bdental4d.volume_render", icon="IMPORT")
         if context.object:
-            if context.object.name.startswith("BD") and context.object.name.endswith(
-                "CTVolume"
-            ):
+            N = context.object.name
+            if N.startswith("BD") and "CTVolume" in N:
                 row = layout.row()
                 row.operator("bdental4d.reset_ctvolume_position")
                 row = layout.row()
@@ -155,9 +154,11 @@ class BDENTAL_4D_PT_ScanPanel(bpy.types.Panel):
                 Box = layout.box()
                 row = Box.row()
                 row.operator("bdental4d.multitresh_segment")
-            if context.object.name.startswith("BD") and context.object.name.endswith(
-                ("CTVolume", "SEGMENTATION")
-            ):
+
+            if N.startswith("BD") and [
+                "_CTVolume" in N or "SEGMENTATION" in N or "_SLICES_POINTER" in N
+            ]:
+
                 row = Box.row()
                 split = row.split()
                 col = split.column()
@@ -234,7 +235,7 @@ class BDENTAL_4D_PT_MeshesTools_Panel(bpy.types.Panel):
         col = split.column()
         row = col.row()
         # row.scale_y = 2
-        row.operator("bdental4d.clean_mesh", text="CLEAN MESH", icon="BRUSH_DATA")
+        row.operator("bdental4d.clean_mesh2", text="CLEAN MESH", icon="BRUSH_DATA")
         row = col.row()
         row.operator("bdental4d.voxelremesh")
 
@@ -268,7 +269,17 @@ class BDENTAL_4D_PT_MeshesTools_Panel(bpy.types.Panel):
                 text="CUT",
                 icon="GP_MULTIFRAME_EDITING",
             )
-
+        elif BDENTAL_4D_Props.Cutting_Tools_Types_Prop == "Curve Cutter 3":
+            row = Box.row()
+            row.prop(BDENTAL_4D_Props, "CurveCutCloseMode", text="")
+            row.operator(
+                "bdental4d.curvecutteradd3", text="ADD CUTTER", icon="GP_SELECT_STROKES"
+            )
+            row.operator(
+                "bdental4d.curvecuttercut3",
+                text="CUT",
+                icon="GP_MULTIFRAME_EDITING",
+            )
         elif BDENTAL_4D_Props.Cutting_Tools_Types_Prop == "Square Cutter":
 
             # Cutting mode column :
