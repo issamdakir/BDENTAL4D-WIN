@@ -63,7 +63,7 @@ def ImportReq(REQ_DICT):
 REQ_DICT = {
     "SimpleITK": "SimpleITK==2.0.2",
     "vtk": "vtk==9.0.1",
-    "cv2": "opencv-contrib-python==4.4.0.46",
+    "cv2.aruco": "opencv-contrib-python==4.4.0.46",
     "matplotlib": "matplotlib",
     "scipy": "scipy",
     "PyQt5": "PyQt5",
