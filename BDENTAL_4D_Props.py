@@ -533,6 +533,21 @@ class BDENTAL_4D_Props(bpy.types.PropertyGroup):
         default=False,
     )
 
+    #####################################################################
+    # DSD props
+    #####################################################################
+    Back_ImageFile: StringProperty(
+            name="Background Image",
+            default="",
+            description="Background Image File Path",
+            subtype="FILE_PATH",
+        )
+    DSD_CalibFile: StringProperty(
+            name="Calibration File",
+            default="",
+            description="Calibration File Path",
+            subtype="FILE_PATH",
+        )
 
 #################################################################################################
 # Registration :

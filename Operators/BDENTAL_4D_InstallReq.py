@@ -63,12 +63,16 @@ class BDENTAL_4D_OT_InstallRequirements(bpy.types.Operator):
         ADDON_DIR = dirname(dirname(abspath(__file__)))
         REQ_ZIP_DIR = join(ADDON_DIR, "Resources", "REQ_ZIP_DIR")
         BDENTAL_4D_Modules_DIR = join(expanduser("~/BDENTAL_4D_Modules"))
-        BDENTAL_4D_Theme = join(ADDON_DIR, "Resources", "BDENTAL_4D_Theme.xml")
 
+        if exists(BDENTAL_4D_Modules_DIR) :
+            shutil.rmtree(BDENTAL_4D_Modules_DIR)
+        
+        os.mkdir(BDENTAL_4D_Modules_DIR)
+        
         ReqInstall(REQ_ZIP_DIR, BDENTAL_4D_Modules_DIR)
 
-        if exists(BDENTAL_4D_Theme):
-            bpy.ops.preferences.theme_install(filepath=BDENTAL_4D_Theme)
+        # if exists(BDENTAL_4D_Theme):
+        #     bpy.ops.preferences.theme_install(filepath=BDENTAL_4D_Theme)
 
         return {"FINISHED"}
 

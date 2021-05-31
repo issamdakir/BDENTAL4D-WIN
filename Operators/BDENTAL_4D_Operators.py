@@ -1,4 +1,4 @@
-import os, stat, sys, shutil, math, threading
+import os, stat, sys, shutil, math, threading,pickle
 from math import degrees, radians, pi, ceil, floor
 import numpy as np
 from time import sleep, perf_counter as Tcounter
@@ -6356,8 +6356,257 @@ class BDENTAL_4D_OT_PaintCut(bpy.types.Operator):
 
             wm = context.window_manager
             return wm.invoke_props_dialog(self)
+###########################################################################
+# DSD Camera
+###########################################################################
+def CamIntrisics(CalibFile):
+    with open(CalibFile, "rb") as rf:
+        (K, distCoeffs, _, _) = pickle.load(rf)
+    fx, fy= K[0,0], K[1,1]
+    return fx, fy, K, distCoeffs
+
+def Undistort(DistImage, K, distCoeffs) :
+    img = cv2.imread(DistImage)
+    h,  w = img.shape[:2]
+    newcameramtx, roi = cv2.getOptimalNewCameraMatrix(K, distCoeffs, (w,h), 1, (w,h))
+    # undistort
+    UndistImage = cv2.undistort(img, K, distCoeffs, None, newcameramtx)
+    # crop the image
+    x, y, w, h = roi
+    UndistImage = UndistImage[y:y+h, x:x+w]
+    Split = split(DistImage)
+    UndistImagePath = join(Split[0],f"Undistorted_{Split[1]}")
+    cv2.imwrite(UndistImagePath, UndistImage)
+    
+    return UndistImagePath
+    
+def DsdCam_from_CalibMatrix(fx, fy, cx, cy):
+    sensor_width_in_mm = fy*cx / (fx*cy)
+    sensor_height_in_mm = 1  # doesn't matter
+    s_u = cx*2 / sensor_width_in_mm
+    f_in_mm = fx / s_u
+    
+    return sensor_width_in_mm,sensor_height_in_mm, f_in_mm
+
+def DsdCam_Orientation(ObjPoints3D, Undistorted_Image_Points2D, K, cx, cy):
+
+    K[0,2] = cx
+    K[1,2] = cy
+    distCoeffs = np.array([0.0,0.0,0.0,0.0,0.0])
+    ret, rvec, tvec = cv2.solvePnP(ObjPoints3D, Undistorted_Image_Points2D, K, distCoeffs)
+
+    mat = mathutils.Matrix(
+                            [[1.0, 0.0, 0.0, 0.0],
+                            [0.0, -1.0, 0.0, 0.0],
+                            [0.0, 0.0, -1.0, 0.0],
+                            [0.0, 0.0, 0.0, 1.0]]    
+                                                    )
+
+    ViewCam_RotM = Matrix(cv2.Rodrigues(rvec)[0]) 
+    ViewCam_Matrix = ViewCam_RotM.to_4x4()                   
+    ViewCam_Matrix.translation = Vector(tvec)
+    Cam_Matrix = ViewCam_Matrix.inverted() @ mat
+    
+    return Cam_Matrix
 
 
+class BDENTAL_4D_OT_AddDsdCamera(bpy.types.Operator):
+    """ Test Operator """
+
+    bl_idname = "bdental4d.add_dsd_camera"
+    bl_label = "DSD CAMERA"
+
+    
+    def execute(self, context):
+
+        BDENTAL_4D_Props = context.scene.BDENTAL_4D_Props
+        ImagePath = BDENTAL_4D_Props.Back_ImageFile
+        CalibFile = AbsPath(BDENTAL_4D_Props.DSD_CalibFile)
+
+        if not exists(ImagePath):
+            message = [
+                "Please check Image path and retry !",
+            ]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+
+            return {"CANCELLED"}
+        if not exists(CalibFile) :
+            message = [
+                "Please check Camera Calibration file and retry !",
+            ]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+
+            return {"CANCELLED"}
+        else:
+            fx, fy, K, distCoeffs = CamIntrisics(CalibFile)
+
+            UndistImagePath = Undistort(ImagePath, K, distCoeffs)
+
+            Image = bpy.data.images.get("DSD_BackImage") or bpy.data.images.load(UndistImagePath, check_existing=False)
+            Image.name = "DSD_BackImage"
+
+            #Add Camera :
+            bpy.ops.object.camera_add(location=(0, 0, 0), rotation=(pi, 0, 0), scale=(1, 1, 1))
+            Cam_obj = context.object
+            Cam_obj.name = 'DSD_Camera'
+            Cam_Coll = MoveToCollection(Cam_obj, 'DSD_CAM')
+            Cam = Cam_obj.data
+            Cam.name = 'DSD_Camera'
+            Cam.type = 'PERSP'
+            Cam.lens_unit = 'MILLIMETERS'
+            Cam.display_size = 50
+            Cam.show_background_images = True
+
+            Cam.background_images.new()
+            bckg_Image = Cam.background_images[0]
+            bckg_Image.image = Image
+            bckg_Image.display_depth = 'FRONT'
+            bckg_Image.alpha = 0.9
+            Image.colorspace_settings.name = 'XYZ'
+
+            ######################################
+            resolution = Image.size[:]
+            cx, cy = resolution[0]/2, resolution[1]/2
+            sensor_width_in_mm,sensor_height_in_mm, f_in_mm = DsdCam_from_CalibMatrix(fx, fy, cx, cy)
+
+            render = context.scene.render
+            render.resolution_percentage = 100
+            render.resolution_x = resolution[0]
+            render.resolution_y = resolution[1]
+
+            Cam.sensor_fit = 'AUTO'
+
+            Cam.sensor_width  = sensor_width_in_mm
+            Cam.sensor_height = sensor_height_in_mm
+            Cam.lens = f_in_mm
+            ##############################################################
+            # Split area :
+            WM = bpy.context.window_manager
+            Window = WM.windows[-1]
+            Screen = Window.screen
+
+            # Area3D = [
+            #     area for area in Screen.areas if area.type == "VIEW_3D"
+            # ][0]
+            # Space3D = [
+            #     space for space in Area3D.spaces if space.type == "VIEW_3D"
+            # ][0]
+            # Region3D = [
+            #     reg for reg in Area3D.regions if reg.type == "WINDOW"
+            # ][0]
+
+            # Area3D.type = (
+            #     "CONSOLE"  # change area type for update : bug dont respond to spliting
+            # )
+            # Override = {
+            #                 "window": Window,
+            #                 "screen": Screen,
+            #                 "area": Area3D,
+            #                 "space_data": Space3D,
+            #                 "region": Region3D,
+            #             }
+            bpy.ops.screen.area_split(direction="VERTICAL", factor=1 / 2)
+            Areas3D = [
+                area for area in Screen.areas if area.type == "VIEW_3D"
+            ]
+            for area in Areas3D :
+                area.type = 'CONSOLE'
+                area.type = "VIEW_3D"
+
+                if area.x == 0 :
+                    print('Area left found')
+                    Left_A3D =area
+                    Left_S3D = [
+                                    space for space in Left_A3D.spaces if space.type == "VIEW_3D"
+                                ][0]
+                    Left_R3D = [
+                                    reg for reg in Left_A3D.regions if reg.type == "WINDOW"
+                                ][0]
+                    Left_override = {'area':Left_A3D, 'space_data':Left_S3D, "region": Left_R3D}
+                    Left_S3D.show_region_ui = False
+                    Left_S3D.use_local_collections = True
+                    
+                else :
+                    print('Area right found')
+
+                    Right_A3D =area
+                    Right_S3D = [
+                                    space for space in Right_A3D.spaces if space.type == "VIEW_3D"
+                                ][0]
+                    Right_R3D = [
+                                    reg for reg in Right_A3D.regions if reg.type == "WINDOW"
+                                ][0]
+
+                    Right_override = {'area':Right_A3D, 'space_data':Right_S3D, "region": Right_R3D}
+                    Right_S3D.show_region_ui = False
+                    Right_S3D.use_local_collections = True
+                    
+
+            
+            
+
+            bpy.ops.view3d.view_camera(Right_override)
+            bpy.ops.view3d.view_center_camera(Right_override)
+            for _ in range(5):
+                bpy.ops.view3d.zoom(Right_override, delta=1)
+            index = len(bpy.data.collections)
+            bpy.ops.object.hide_collection(Right_override, collection_index=index)
+            for i in range(index) :
+                bpy.ops.object.hide_collection(Left_override, collection_index=i)
+            
+
+
+            ##############################################################
+            # ImgPoints2D = np.array(
+            #     [
+            #         (1467, 1029),
+            #         (1595, 851),
+            #         (1869, 1072),
+            #         (2120, 1021),
+            #         (2168, 837),
+            #         (2357, 979),
+            #                         ],
+            #     dtype=np.float32,
+            # )
+            # # ImgPoints2D = np.array(
+            # #     [
+            # #         (1509, 1089),
+            # #         (1644, 901),
+            # #         (1930, 1132),
+            # #         (2191, 1081),
+            # #         (2241, 887),
+            # #         (2439, 1035),   
+            # #     ],
+            # #     dtype=np.float32,
+            # # )
+
+            # ObjPoints3D = np.array(
+            # [[-17.91839599609375, 8.84132194519043, 0.9204647541046143],
+            # [-11.91409683227539, 4.037921905517578, 8.831137657165527],
+            # [-0.9221503734588623, -0.23697662353515625, 0.11914398521184921],
+            # [9.502033233642578, 1.8283214569091797, 1.9180859327316284],
+            # [12.186532974243164, 3.4850215911865234, 9.207136154174805],
+            # [22.64107894897461, 14.200422286987305, 2.2281322479248047]],
+            #     dtype=np.float32,
+            # )
+
+            # # ObjPoints3D = np.array(
+            # #     [
+            # #         (-15.6916, -24.2017, 20.4906),
+            # #         (-9.82975, -29.0051, 28.5074),
+            # #         (1.31626, -33.28, 19.9934),
+            # #         (11.7066, -31.2147, 21.9785),
+            # #         (14.2603, -29.558, 29.3144), 
+            # #         (24.838, -18.8426, 22.5235),
+            # #     ],
+            # #     dtype=np.float32,
+            # # )
+            
+            # Cam_Matrix = DsdCam_Orientation(ObjPoints3D, ImgPoints2D,  K, cx, cy)
+
+            # Cam_obj.matrix_world = Cam_Matrix
+
+        return {"FINISHED"}
 #################################################################################################
 # Registration :
 #################################################################################################
@@ -6420,6 +6669,7 @@ classes = [
     BDENTAL_4D_OT_PaintAreaMinus,
     BDENTAL_4D_OT_PaintCut,
     BDENTAL_4D_OT_AddTube,
+    BDENTAL_4D_OT_AddDsdCamera,
 ]
 
 

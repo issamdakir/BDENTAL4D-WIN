@@ -685,6 +685,43 @@ class BDENTAL_4D_PT_Measurements(bpy.types.Panel):
         row = Box.row()
         row.operator("bdental4d.ctvolume_orientation")
 
+        ##DSD operators#################
+        Box = layout.box()
+        split = Box.split(factor=1 / 3, align=False)
+        col= split.column()
+        col.label(text="Background Image :")
+        col= split.column()
+        col.prop(BDENTAL_4D_Props, "Back_ImageFile", text="")
+
+        Box = layout.box()
+        split = Box.split(factor=1 / 3, align=False)
+        col= split.column()
+        col.label(text="Calibration File :")
+        col= split.column()
+        col.prop(BDENTAL_4D_Props, "DSD_CalibFile", text="")
+
+        row = Box.row()
+        row.operator("bdental4d.add_dsd_camera")
+        Cam = bpy.data.objects.get("DSD_Camera")
+        if Cam :
+            bckg_Images = Cam.data.background_images
+            if bckg_Images :
+                bckg_img = bckg_Images[0]
+                split = Box.split(factor=1 / 3, align=False)
+                col= split.column()
+                col.label(text="Transparency :")
+                col= split.column()
+                col.prop(bckg_img, "alpha", text="")
+
+                split = Box.split(factor=1 / 3, align=False)
+                col= split.column()
+                col.label(text="Image Offset :")
+                col= split.column()
+                col.prop(bckg_img, "offset", text="")
+
+                
+
+
 
 class BDENTAL_4D_PT_Waxup(bpy.types.Panel):
     """ WaxUp Panel"""

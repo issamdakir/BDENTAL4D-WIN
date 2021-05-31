@@ -616,7 +616,7 @@ def MoveToCollection(obj, CollName):
         for Coll in OldColl:  # unlink from all  precedent obj collections
             if Coll is not NewColl:
                 Coll.objects.unlink(obj)
-
+    return NewColl
 
 @persistent
 def BDENTAL_4D_TresholdUpdate(scene):
