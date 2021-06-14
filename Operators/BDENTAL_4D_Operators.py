@@ -6454,31 +6454,77 @@ class BDENTAL_4D_OT_AddDsdCamera(bpy.types.Operator):
             Cam.name = 'DSD_Camera'
             Cam.type = 'PERSP'
             Cam.lens_unit = 'MILLIMETERS'
-            Cam.display_size = 50
+            Cam.display_size = 10
             Cam.show_background_images = True
 
-            Cam.background_images.new()
-            bckg_Image = Cam.background_images[0]
-            bckg_Image.image = Image
-            bckg_Image.display_depth = 'FRONT'
-            bckg_Image.alpha = 0.9
-            Image.colorspace_settings.name = 'XYZ'
+            # Cam.background_images.new()
+            # bckg_Image = Cam.background_images[0]
+            # bckg_Image.image = Image
+            # bckg_Image.display_depth = 'FRONT'
+            # bckg_Image.alpha = 0.9
+            Image.colorspace_settings.name = 'Non-Color'
 
             ######################################
-            resolution = Image.size[:]
-            cx, cy = resolution[0]/2, resolution[1]/2
+            W, H = Image.size[:]
+            cx, cy = W/2, H/2
             sensor_width_in_mm,sensor_height_in_mm, f_in_mm = DsdCam_from_CalibMatrix(fx, fy, cx, cy)
 
             render = context.scene.render
             render.resolution_percentage = 100
-            render.resolution_x = resolution[0]
-            render.resolution_y = resolution[1]
+            render.resolution_x = W
+            render.resolution_y = H
 
             Cam.sensor_fit = 'AUTO'
 
             Cam.sensor_width  = sensor_width_in_mm
             Cam.sensor_height = sensor_height_in_mm
             Cam.lens = f_in_mm
+            
+            frame = Cam.view_frame()
+            Cam_frame_World = [Cam_obj.matrix_world @ co for co in frame]
+            Plane_loc = (Cam_frame_World[0] + Cam_frame_World[2])/2
+            Plane_Dims = [W/max([W,H]), H/max([W,H]),0]
+
+            bpy.ops.mesh.primitive_plane_add(location=Plane_loc, rotation=Cam_obj.rotation_euler)
+            Plane = bpy.context.object
+            MoveToCollection(Plane, 'DSD_CAM')
+            Plane.name = f"DSD_Plane_{Image.name}"
+            Plane.dimensions = Plane_Dims
+            bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+            bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='MEDIAN')
+
+
+            mat = bpy.data.materials.new(f"DSD_Mat_{Image.name}")
+            mat.use_nodes = True
+            node_tree = mat.node_tree
+            nodes = node_tree.nodes
+            links = node_tree.links
+
+            for node in nodes:
+                if node.type != "OUTPUT_MATERIAL":
+                    nodes.remove(node)
+
+            TextureCoord = AddNode(nodes, type="ShaderNodeTexCoord", name="TextureCoord")
+            ImageTexture = AddNode(nodes, type="ShaderNodeTexImage", name="Image Texture")
+
+            ImageTexture.image = Image
+
+            materialOutput = nodes["Material Output"]
+
+            links.new(TextureCoord.outputs[0], ImageTexture.inputs[0])
+            links.new(ImageTexture.outputs["Color"], materialOutput.inputs["Surface"])
+            for slot in Plane.material_slots:
+                bpy.ops.object.material_slot_remove()
+
+            Plane.active_material = mat
+
+            mat.blend_method = "HASHED"
+            mat.shadow_method = "HASHED"
+            context.space_data.shading.type = "SOLID"
+            context.space_data.shading.color_type = "TEXTURE"
+            context.space_data.shading.show_specular_highlight = False
+
+
             ##############################################################
             # Split area :
             WM = bpy.context.window_manager
@@ -6547,7 +6593,7 @@ class BDENTAL_4D_OT_AddDsdCamera(bpy.types.Operator):
 
             bpy.ops.view3d.view_camera(Right_override)
             bpy.ops.view3d.view_center_camera(Right_override)
-            for _ in range(5):
+            for _ in range(3):
                 bpy.ops.view3d.zoom(Right_override, delta=1)
             index = len(bpy.data.collections)
             bpy.ops.object.hide_collection(Right_override, collection_index=index)
@@ -6607,6 +6653,425 @@ class BDENTAL_4D_OT_AddDsdCamera(bpy.types.Operator):
             # Cam_obj.matrix_world = Cam_Matrix
 
         return {"FINISHED"}
+
+class BDENTAL_4D_OT_MatchingPointsAdd(bpy.types.Operator):
+    """  """
+
+    bl_idname = "bdental4d.matching_points_add"
+    bl_label = "MATCH POINTS"
+    bl_options = {"REGISTER", "UNDO"}
+
+    MP2D_List = []
+    MP3D_List = []
+    MP_All_List = []
+
+    counter2D, counter3D = 1, 1
+    color2D = (1,0,1,1)
+    color3D = (0,1,0,1)
+
+
+    def MouseActionZone(self, context, event):
+        if event.mouse_x >= self.Right_A3D.x :
+            return '2D'
+        else :
+            return '3D'
+
+    def modal(self, context, event):
+
+        BDENTAL_4D_Props = context.scene.BDENTAL_4D_Props
+
+        if not event.type in {
+            "DEL",
+            "LEFTMOUSE",
+            "RET",
+            "ESC",
+        }:
+            # allow navigation
+
+            return {"PASS_THROUGH"}
+
+        elif event.type == ("DEL"):
+            
+            if event.value == ("PRESS"):
+                
+                if self.MP_All_List :
+                    obj = self.MP_All_List.pop()
+                    bpy.data.objects.remove(obj)
+                    
+                    if obj in self.MP2D_List :
+                        self.counter2D-=1
+                        self.MP2D_List.pop()
+                        self.Matchs['2D'].pop(self.counter2D)
+                    if obj in self.MP3D_List :
+                        self.counter3D-=1
+                        self.MP3D_List.pop()
+                        self.Matchs['3D'].pop(self.counter3D)
+
+            return {"RUNNING_MODAL"}
+
+        elif event.type == ("LEFTMOUSE"):
+
+            if event.value == ("PRESS"):
+
+                bpy.ops.wm.tool_set_by_id(name="builtin.cursor")
+                return {"PASS_THROUGH"}
+
+            if event.value == ("RELEASE"):
+                
+                Cursor = context.scene.cursor.location
+                CursorLocal = self.Mtx @ Cursor
+                u = (CursorLocal[0] + self.Dims[0]/2)/self.Dims[0]
+                v = (CursorLocal[1] + self.Dims[1]/2)/self.Dims[1]
+                w = CursorLocal[2]
+                print("u : ",u," v : ",v, " w : ",w)
+
+                e = 0.000001
+                
+                
+                MAZ = self.MouseActionZone(context, event)
+                print('MAZ : ', MAZ)
+                print('mouse x : ',event.mouse_x)
+                if MAZ == '2D' :
+                    if not 0<=u+e<=1 or not 0<=v+e<=1 or w > e :
+                        self.report({'INFO'}, "Outside the Image!")
+                    else :
+                        name = f"MP2D_{self.counter2D}"
+                        MP2D = AddMarkupPoint(name, self.color2D, Cursor, Diameter=0.01, CollName=self.DSD_Coll.name, show_name=False)
+                        self.MP2D_List.append(MP2D)
+                        self.MP_All_List.append(MP2D)
+                        
+                        bpy.ops.object.select_all(action="DESELECT")
+
+                        size_x, size_y = self.size
+                    
+                        px, py = int((size_x -1)*u), int((size_y -1)*(1-v))
+
+                        self.Matchs['2D'][self.counter2D]= [px, py]
+                        self.counter2D+=1
+
+                if MAZ == '3D' :
+                    name = f"MP3D_{self.counter3D}"
+                    MP3D = AddMarkupPoint(name, self.color3D, Cursor, Diameter=1, CollName=self.DSD_Coll.name, show_name=False)
+                    self.MP3D_List.append(MP3D)
+                    self.MP_All_List.append(MP3D)
+                    
+                    bpy.ops.object.select_all(action="DESELECT")
+                    self.Matchs['3D'][self.counter3D]= list(MP3D.location)
+                    self.counter3D+=1
+                        
+                bpy.ops.wm.tool_set_by_id(name="builtin.select")
+
+        elif event.type == "RET":
+
+            Points2D = self.MP2D_List.copy()
+            if Points2D :
+                for obj in Points2D:
+                    bpy.data.objects.remove(obj)
+
+            Points3D = self.MP3D_List.copy()
+            if Points3D :
+                for obj in Points3D:
+                    bpy.data.objects.remove(obj)
+
+            print(self.Matchs)
+
+            return {"FINISHED"}
+
+        elif event.type == ("ESC"):
+            Points2D = self.MP2D_List.copy()
+            if Points2D :
+                for obj in Points2D:
+                    bpy.data.objects.remove(obj)
+
+            Points3D = self.MP3D_List.copy()
+            if Points3D :
+                for obj in Points3D:
+                    bpy.data.objects.remove(obj)
+
+            col = bpy.data.collections.get('Matching Points')
+            if col :
+                bpy.data.collections.remove(col)
+            return {"CANCELLED"}
+
+        return {"RUNNING_MODAL"}
+
+    def invoke(self, context, event):
+
+        BDENTAL_4D_Props = context.scene.BDENTAL_4D_Props
+        ImagePath = BDENTAL_4D_Props.Back_ImageFile
+        CalibFile = AbsPath(BDENTAL_4D_Props.DSD_CalibFile)
+
+        if not exists(ImagePath):
+            message = [
+                "Please check Image path and retry !",
+            ]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+
+            return {"CANCELLED"}
+
+        if not exists(CalibFile) :
+            message = [
+                "Please check Camera Calibration file and retry !",
+            ]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+
+            return {"CANCELLED"}
+
+        self.Target = context.object
+        if not self.Target:
+
+            message = [" Please select the target object !"]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+
+            return {"CANCELLED"}
+
+        else:
+
+            
+
+            if context.space_data.type == "VIEW_3D":
+
+                #######################################################
+                fx, fy, self.K, distCoeffs = CamIntrisics(CalibFile)
+
+                UndistImagePath = Undistort(ImagePath, self.K, distCoeffs)
+                ImgName = os.path.split(ImagePath)[-1] or os.path.split(ImagePath)[-2]
+                self.Suffix = ImgName.split('.')[0]
+
+                ImageName = f"DSD_Image({self.Suffix})"
+                Image = bpy.data.images.get(ImageName) or bpy.data.images.load(UndistImagePath, check_existing=False)
+                Image.name = ImageName
+                Image.colorspace_settings.name = 'Non-Color'
+
+                #Add Camera :
+                bpy.ops.object.camera_add(location=(0, 0, 0), rotation=(pi, 0, 0), scale=(1, 1, 1))
+                self.Cam_obj = context.object
+                self.Cam_obj.name = f"DSD_Camera({self.Suffix})"
+                MoveToCollection(self.Cam_obj, 'CAM_DSD')
+                Cam = self.Cam_obj.data
+                Cam.name = self.Cam_obj.name
+                Cam.type = 'PERSP'
+                Cam.lens_unit = 'MILLIMETERS'
+                Cam.display_size = 10
+                Cam.show_background_images = True
+
+                # # Make background Image :
+                # Cam.background_images.new()
+                # bckg_Image = Cam.background_images[0]
+                # bckg_Image.image = Image
+                # bckg_Image.display_depth = 'FRONT'
+                # bckg_Image.alpha = 0.9
+
+                ######################################
+                W, H = Image.size[:]
+                self.cx, self.cy = W/2, H/2
+                sensor_width_in_mm,sensor_height_in_mm, f_in_mm = DsdCam_from_CalibMatrix(fx, fy, self.cx, self.cy)
+
+                render = context.scene.render
+                render.resolution_percentage = 100
+                render.resolution_x = W
+                render.resolution_y = H
+
+                Cam.sensor_fit = 'AUTO'
+
+                Cam.sensor_width  = sensor_width_in_mm
+                Cam.sensor_height = sensor_height_in_mm
+                Cam.lens = f_in_mm
+                
+                frame = Cam.view_frame()
+                Cam_frame_World = [self.Cam_obj.matrix_world @ co for co in frame]
+                Plane_loc = (Cam_frame_World[0] + Cam_frame_World[2])/2
+                Plane_Dims = [W/max([W,H]), H/max([W,H]),0]
+
+                bpy.ops.mesh.primitive_plane_add(location=Plane_loc, rotation=self.Cam_obj.rotation_euler)
+                self.ImagePlane = bpy.context.object
+                self.DSD_Coll = MoveToCollection(self.ImagePlane, 'BDENTAL4D_DSD')
+                self.ImagePlane.name = f"DSD_Plane_{self.Suffix}"
+                self.ImagePlane.dimensions = Plane_Dims
+                bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+                bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='MEDIAN')
+
+
+                mat = bpy.data.materials.new(f"DSD_Mat_{self.Suffix}")
+                mat.use_nodes = True
+                node_tree = mat.node_tree
+                nodes = node_tree.nodes
+                links = node_tree.links
+
+                for node in nodes:
+                    if node.type != "OUTPUT_MATERIAL":
+                        nodes.remove(node)
+
+                TextureCoord = AddNode(nodes, type="ShaderNodeTexCoord", name="TextureCoord")
+                ImageTexture = AddNode(nodes, type="ShaderNodeTexImage", name="Image Texture")
+
+                ImageTexture.image = Image
+
+                materialOutput = nodes["Material Output"]
+
+                links.new(TextureCoord.outputs[0], ImageTexture.inputs[0])
+                links.new(ImageTexture.outputs["Color"], materialOutput.inputs["Surface"])
+                for slot in self.ImagePlane.material_slots:
+                    bpy.ops.object.material_slot_remove()
+
+                self.ImagePlane.active_material = mat
+
+                mat.blend_method = "HASHED"
+                mat.shadow_method = "HASHED"
+                context.space_data.shading.type = "SOLID"
+                context.space_data.shading.color_type = "TEXTURE"
+                context.space_data.shading.show_specular_highlight = False
+
+
+                ##############################################################
+                # Split area :
+                WM = bpy.context.window_manager
+                Window = WM.windows[-1]
+                Screen = Window.screen
+
+                # Area3D = [
+                #     area for area in Screen.areas if area.type == "VIEW_3D"
+                # ][0]
+                # Space3D = [
+                #     space for space in Area3D.spaces if space.type == "VIEW_3D"
+                # ][0]
+                # Region3D = [
+                #     reg for reg in Area3D.regions if reg.type == "WINDOW"
+                # ][0]
+
+                # Area3D.type = (
+                #     "CONSOLE"  # change area type for update : bug dont respond to spliting
+                # )
+                # Override = {
+                #                 "window": Window,
+                #                 "screen": Screen,
+                #                 "area": Area3D,
+                #                 "space_data": Space3D,
+                #                 "region": Region3D,
+                #             }
+                bpy.ops.screen.area_split(direction="VERTICAL", factor=1 / 2)
+                Areas3D = [
+                    area for area in Screen.areas if area.type == "VIEW_3D"
+                ]
+                for area in Areas3D :
+                    area.type = 'CONSOLE'
+                    area.type = "VIEW_3D"
+
+                    if area.x == 0 :
+                        print('Area left found')
+                        self.Left_A3D = Left_A3D =area
+                        Left_S3D = [
+                                        space for space in Left_A3D.spaces if space.type == "VIEW_3D"
+                                    ][0]
+                        Left_R3D = [
+                                        reg for reg in Left_A3D.regions if reg.type == "WINDOW"
+                                    ][0]
+                        Left_override = {'area':Left_A3D, 'space_data':Left_S3D, "region": Left_R3D}
+                        Left_S3D.show_region_ui = False
+                        Left_S3D.use_local_collections = True
+                        
+                    else :
+                        print('Area right found')
+
+                        self.Right_A3D = Right_A3D = area
+                        Right_S3D = [
+                                        space for space in Right_A3D.spaces if space.type == "VIEW_3D"
+                                    ][0]
+                        Right_R3D = [
+                                        reg for reg in Right_A3D.regions if reg.type == "WINDOW"
+                                    ][0]
+
+                        Right_override = {'area':Right_A3D, 'space_data':Right_S3D, "region": Right_R3D}
+                        Right_S3D.show_region_ui = False
+                        Right_S3D.use_local_collections = True
+                        
+
+                
+                
+
+                bpy.ops.view3d.view_camera(Right_override)
+                bpy.ops.view3d.view_center_camera(Right_override)
+                for _ in range(3):
+                    bpy.ops.view3d.zoom(Right_override, delta=1)
+                index = len(bpy.data.collections)-1
+                # bpy.ops.object.hide_collection(Right_override, collection_index=index)
+                
+                bpy.ops.object.hide_collection(Left_override, collection_index=index,toggle=True)
+                
+
+
+                ##############################################################
+                # ImgPoints2D = np.array(
+                #     [
+                #         (1467, 1029),
+                #         (1595, 851),
+                #         (1869, 1072),
+                #         (2120, 1021),
+                #         (2168, 837),
+                #         (2357, 979),
+                #                         ],
+                #     dtype=np.float32,
+                # )
+                # # ImgPoints2D = np.array(
+                # #     [
+                # #         (1509, 1089),
+                # #         (1644, 901),
+                # #         (1930, 1132),
+                # #         (2191, 1081),
+                # #         (2241, 887),
+                # #         (2439, 1035),   
+                # #     ],
+                # #     dtype=np.float32,
+                # # )
+
+                # ObjPoints3D = np.array(
+                # [[-17.91839599609375, 8.84132194519043, 0.9204647541046143],
+                # [-11.91409683227539, 4.037921905517578, 8.831137657165527],
+                # [-0.9221503734588623, -0.23697662353515625, 0.11914398521184921],
+                # [9.502033233642578, 1.8283214569091797, 1.9180859327316284],
+                # [12.186532974243164, 3.4850215911865234, 9.207136154174805],
+                # [22.64107894897461, 14.200422286987305, 2.2281322479248047]],
+                #     dtype=np.float32,
+                # )
+
+                # # ObjPoints3D = np.array(
+                # #     [
+                # #         (-15.6916, -24.2017, 20.4906),
+                # #         (-9.82975, -29.0051, 28.5074),
+                # #         (1.31626, -33.28, 19.9934),
+                # #         (11.7066, -31.2147, 21.9785),
+                # #         (14.2603, -29.558, 29.3144), 
+                # #         (24.838, -18.8426, 22.5235),
+                # #     ],
+                # #     dtype=np.float32,
+                # # )
+                
+                # Cam_Matrix = DsdCam_Orientation(ObjPoints3D, ImgPoints2D,  K, cx, cy)
+
+                # Cam_obj.matrix_world = Cam_Matrix
+
+                #######################################################
+                
+                self.Mtx = self.ImagePlane.matrix_world.inverted()
+                self.size = Image.size
+                self.Dims = self.ImagePlane.dimensions
+                self.Matchs = {'2D':{}, '3D':{}}
+
+                bpy.ops.object.select_all(action="DESELECT")
+                self.ImagePlane.select_set(True)
+                context.view_layer.objects.active = self.ImagePlane
+                
+                context.window_manager.modal_handler_add(self)
+
+                return {"RUNNING_MODAL"}
+
+            else:
+
+                self.report({"WARNING"}, "Active space must be a View3d")
+
+                return {"CANCELLED"}
+
+
 #################################################################################################
 # Registration :
 #################################################################################################
@@ -6670,6 +7135,7 @@ classes = [
     BDENTAL_4D_OT_PaintCut,
     BDENTAL_4D_OT_AddTube,
     BDENTAL_4D_OT_AddDsdCamera,
+    BDENTAL_4D_OT_MatchingPointsAdd,
 ]
 
 

@@ -64,10 +64,10 @@ class BDENTAL_4D_OT_InstallRequirements(bpy.types.Operator):
         REQ_ZIP_DIR = join(ADDON_DIR, "Resources", "REQ_ZIP_DIR")
         BDENTAL_4D_Modules_DIR = join(expanduser("~/BDENTAL_4D_Modules"))
 
-        if exists(BDENTAL_4D_Modules_DIR) :
-            shutil.rmtree(BDENTAL_4D_Modules_DIR)
+        if not exists(BDENTAL_4D_Modules_DIR) :
+            os.mkdir(BDENTAL_4D_Modules_DIR)
+            # shutil.rmtree(BDENTAL_4D_Modules_DIR)
         
-        os.mkdir(BDENTAL_4D_Modules_DIR)
         
         ReqInstall(REQ_ZIP_DIR, BDENTAL_4D_Modules_DIR)
 
