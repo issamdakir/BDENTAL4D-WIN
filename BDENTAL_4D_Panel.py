@@ -699,10 +699,17 @@ class BDENTAL_4D_PT_Measurements(bpy.types.Panel):
         col.label(text="Calibration File :")
         col= split.column()
         col.prop(BDENTAL_4D_Props, "DSD_CalibFile", text="")
-
         row = Box.row()
-        row.operator("bdental4d.add_dsd_camera")
-        Cam = bpy.data.objects.get("DSD_Camera")
+        row.operator("bdental4d.matching_2d3d")
+
+        split = Box.split(factor=1 / 3, align=False)
+        col= split.column()
+        col.operator("bdental4d.xray_toggle",text="Transparancy")
+        col= split.column()
+        col.prop(context.space_data.shading, "xray_alpha", text="")
+        
+
+        # Cam = bpy.data.objects.get("DSD_Camera")
         # if Cam :
         #     bckg_Images = Cam.data.background_images
         #     if bckg_Images :
@@ -719,8 +726,7 @@ class BDENTAL_4D_PT_Measurements(bpy.types.Panel):
         #         col= split.column()
         #         col.prop(bckg_img, "offset", text="")
 
-        row = Box.row()
-        row.operator("bdental4d.matching_points_add")
+        
 
 
 
