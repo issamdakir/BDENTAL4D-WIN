@@ -790,16 +790,6 @@ class BDENTAL_4D_PT_Waxup(bpy.types.Panel):
                 row.alert = True
                 row.label(text="LowJaw is not detected!")
 
-        if BDENTAL_4D_Props.BakeLowPlane == True:
-            print("Low Enabled")
-        else:
-            print("Low Disabled")
-
-        if BDENTAL_4D_Props.BakeUpPlane == True:
-            print("Up Enabled")
-        else:
-            print("Up Disabled")
-
 
 ##################################################################################
 

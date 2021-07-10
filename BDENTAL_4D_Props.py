@@ -10,33 +10,7 @@ from bpy.props import (
     BoolProperty,
 )
 
-
-def TresholdUpdateFunction(self, context):
-    BDENTAL_4D_Props = context.scene.BDENTAL_4D_Props
-    GpShader = BDENTAL_4D_Props.GroupNodeName
-    Treshold = BDENTAL_4D_Props.Treshold
-
-    CtVolumeList = [
-        obj
-        for obj in bpy.context.scene.objects
-        if obj.name.startswith("BD") and obj.name.endswith("_CTVolume")
-    ]
-    if context.object in CtVolumeList:
-        Vol = context.object
-        Preffix = Vol.name[:5]
-        GpNode = bpy.data.node_groups.get(f"{Preffix}_{GpShader}")
-
-        if GpShader == "VGS_Marcos_modified":
-            Low_Treshold = GpNode.nodes["Low_Treshold"].outputs[0]
-            Low_Treshold.default_value = Treshold
-        if GpShader == "VGS_Dakir_01":
-            DcmInfo = eval(BDENTAL_4D_Props.DcmInfo)
-            Wmin = DcmInfo["Wmin"]
-            Wmax = DcmInfo["Wmax"]
-            treshramp = GpNode.nodes["TresholdRamp"].color_ramp.elements[0]
-            value = (Treshold - Wmin) / (Wmax - Wmin)
-            treshramp = value
-
+from .Operators.BDENTAL_4D_Utils import *
 
 def text_body_update(self, context):
     props = context.scene.ODC_modops_props
@@ -204,7 +178,7 @@ class BDENTAL_4D_Props(bpy.types.PropertyGroup):
         soft_min=-400,
         soft_max=3000,
         step=1,
-        update=TresholdUpdateFunction,
+        update=BDENTAL4D_Treshold_Prop_UpdateFunction,
     )
     Progress_Bar: FloatProperty(
         name="Progress_Bar",

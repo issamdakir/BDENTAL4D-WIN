@@ -15,6 +15,8 @@ import matplotlib.pyplot as plt
 import matplotlib
 import matplotlib.gridspec as gridspec
 from matplotlib.ticker import AutoMinorLocator, MultipleLocator
+from matplotlib.patches import Arc
+from matplotlib.transforms import IdentityTransform, TransformedBbox, Bbox
 
 from PyQt5.QtWidgets import (
     QWidget,
@@ -77,6 +79,11 @@ def ShowMessageBox(message=[], title="INFO", icon="INFO"):
 #######################################################################################
 # Load CT Scan functions :
 #######################################################################################
+def CheckString(String, MatchesList,mode=all):
+    if mode(x in String for x in MatchesList ):
+        return True
+    else:
+        return False
 def rmtree(top):
     for root, dirs, files in os.walk(top, topdown=False):
         for name in files:
@@ -620,20 +627,16 @@ def MoveToCollection(obj, CollName):
 
 @persistent
 def BDENTAL_4D_TresholdUpdate(scene):
-
-    CtVolumeList = [
-        obj
-        for obj in bpy.context.scene.objects
-        if (obj.name.startswith("BD") and obj.name.endswith("_CTVolume"))
-    ]
-    if CtVolumeList:
-        BDENTAL_4D_Props = bpy.context.scene.BDENTAL_4D_Props
-        GpShader = BDENTAL_4D_Props.GroupNodeName
-        Active_Obj = bpy.context.view_layer.objects.active
-        if Active_Obj and Active_Obj in CtVolumeList:
+    BDENTAL_4D_Props = bpy.context.scene.BDENTAL_4D_Props
+    GpShader = BDENTAL_4D_Props.GroupNodeName
+    Active_Obj = bpy.context.view_layer.objects.active
+    if Active_Obj :
+        condition = CheckString(Active_Obj.name, ["BD4D", "_CTVolume"],mode=all)
+        
+        if condition :
             # print("Treshold Update trigred!")
             Vol = Active_Obj
-            Preffix = Vol.name[:5]
+            Preffix = Vol.name.split('_')[0]
             GpNode = bpy.data.node_groups.get(f"{Preffix}_{GpShader}")
 
             if GpShader == "VGS_Marcos_modified":
@@ -648,14 +651,35 @@ def BDENTAL_4D_TresholdUpdate(scene):
                     treshramp.default_value * (Wmax - Wmin) + Wmin
                 )
 
+def BDENTAL4D_Treshold_Prop_UpdateFunction(self, context):
+    BDENTAL_4D_Props = bpy.context.scene.BDENTAL_4D_Props
+    GpShader = BDENTAL_4D_Props.GroupNodeName
+    Treshold = BDENTAL_4D_Props.Treshold
+    Active_Obj = bpy.context.view_layer.objects.active
+    if Active_Obj :
+        condition = CheckString(Active_Obj.name, ["BD4D", "_CTVolume"],mode=all)
+        
+        if condition :
+    
+            Vol = Active_Obj
+            Preffix = Vol.name.split('_')[0]
+            GpNode = bpy.data.node_groups.get(f"{Preffix}_{GpShader}")
+
+            if GpShader == "VGS_Marcos_modified":
+                Low_Treshold = GpNode.nodes["Low_Treshold"].outputs[0]
+                Low_Treshold.default_value = Treshold
+            if GpShader == "VGS_Dakir_01":
+                DcmInfo = eval(BDENTAL_4D_Props.DcmInfo)
+                Wmin = DcmInfo["Wmin"]
+                Wmax = DcmInfo["Wmax"]
+                value = (Treshold - Wmin) / (Wmax - Wmin)
+                GpNode.nodes["TresholdRamp"].color_ramp.elements[0].default_value = value
+
 
 def VolumeRender(DcmInfo, GpShader, ShadersBlendFile):
 
     BDENTAL_4D_Props = bpy.context.scene.BDENTAL_4D_Props
 
-    CtVolumeList = [
-        obj for obj in bpy.context.scene.objects if "BDENTAL_4D_CTVolume_" in obj.name
-    ]
     Preffix = DcmInfo["Preffix"]
 
     Sp = Spacing = DcmInfo["RenderSp"]
@@ -913,12 +937,12 @@ def AxialSliceUpdate(scene):
     Planes = [
         obj
         for obj in bpy.context.scene.objects
-        if (obj.name[2:4] == "BD" and obj.name.endswith("_AXIAL_SLICE"))
+        if CheckString(obj.name, ["BD4D", "_AXIAL_SLICE"])
     ]
     SLICES_POINTER = [
         obj
         for obj in bpy.context.scene.objects
-        if (obj.name.startswith("BD") and obj.name.endswith("_SLICES_POINTER"))
+        if CheckString(obj.name, ["BD4D", "_SLICES_POINTER"])
     ]
 
     if Planes:
@@ -929,9 +953,9 @@ def AxialSliceUpdate(scene):
         Condition2 = ActiveObject in SLICES_POINTER
 
         if Condition1:
-            Preffix = ActiveObject.name[2:7]
+            Preffix = ActiveObject.name.split('_')[1]
         if Condition2:
-            Preffix = ActiveObject.name[0:5]
+            Preffix = ActiveObject.name.split('_')[0]
 
         if Condition1 or Condition2:
 
@@ -1019,12 +1043,12 @@ def CoronalSliceUpdate(scene):
     Planes = [
         obj
         for obj in bpy.context.scene.objects
-        if (obj.name[2:4] == "BD" and obj.name.endswith("_CORONAL_SLICE"))
+        if CheckString(obj.name, ["BD4D", "_CORONAL_SLICE"])
     ]
     SLICES_POINTER = [
         obj
         for obj in bpy.context.scene.objects
-        if (obj.name.startswith("BD") and obj.name.endswith("_SLICES_POINTER"))
+        if CheckString(obj.name, ["BD4D", "_SLICES_POINTER"])
     ]
 
     if Planes:
@@ -1035,9 +1059,9 @@ def CoronalSliceUpdate(scene):
         Condition2 = ActiveObject in SLICES_POINTER
 
         if Condition1:
-            Preffix = ActiveObject.name[2:7]
+            Preffix = ActiveObject.name.split('_')[1]
         if Condition2:
-            Preffix = ActiveObject.name[0:5]
+            Preffix = ActiveObject.name.split('_')[0]
 
         if Condition1 or Condition2:
 
@@ -1122,16 +1146,15 @@ def CoronalSliceUpdate(scene):
 
 @persistent
 def SagitalSliceUpdate(scene):
-
     Planes = [
         obj
         for obj in bpy.context.scene.objects
-        if (obj.name[2:4] == "BD" and obj.name.endswith("_SAGITAL_SLICE"))
+        if CheckString(obj.name, ["BD4D", "_SAGITAL_SLICE"])
     ]
     SLICES_POINTER = [
         obj
         for obj in bpy.context.scene.objects
-        if (obj.name.startswith("BD") and obj.name.endswith("_SLICES_POINTER"))
+        if CheckString(obj.name, ["BD4D", "_SLICES_POINTER"])
     ]
 
     if Planes:
@@ -1142,9 +1165,9 @@ def SagitalSliceUpdate(scene):
         Condition2 = ActiveObject in SLICES_POINTER
 
         if Condition1:
-            Preffix = ActiveObject.name[2:7]
+            Preffix = ActiveObject.name.split('_')[1]
         if Condition2:
-            Preffix = ActiveObject.name[0:5]
+            Preffix = ActiveObject.name.split('_')[0]
 
         if Condition1 or Condition2:
 
@@ -3395,9 +3418,13 @@ def JTrackRepportPlot(ImgFolder):
     ax0.patch.set_facecolor("whitesmoke")
     ax0.set_title("Coronal Plane (incisal point)")
     ax0.set(xlabel="X axis, mm", ylabel="Z axis, mm")
-
-    ax0.xaxis.set_major_locator(MultipleLocator(1))
-    ax0.yaxis.set_major_locator(MultipleLocator(1))
+    ax0.axis('equal')
+    ax0.xaxis.set_major_locator(MultipleLocator(5))
+    ax0.yaxis.set_major_locator(MultipleLocator(5))
+    ax0.xaxis.set_minor_locator(MultipleLocator(1))
+    ax0.yaxis.set_minor_locator(MultipleLocator(1))
+    ax0.grid(which="minor", color="#e4e4e4", linestyle="--")
+    
     ax0.grid(which="major", color="#CCCCCC", linestyle="--")
     ax0.grid(True)
     ax0.plot(IP_X_Array, IP_Z_Array, color="dimgray", linewidth=0.5)
@@ -3457,46 +3484,62 @@ def JTrackRepportPlot(ImgFolder):
 
     # ANGLES
     # RIGHT LATEROTRUSION
-    line1 = np.array([(IP_CP_X, IP_CP_Z), (IP_LR_X, IP_CP_Z)])
-    line2 = np.array([(IP_CP_X, IP_CP_Z), (IP_LR_X, IP_LR_Z)])
-    lines = [line1, line2]
-    for line in lines:
-        x, y = line.T
-    arc, angle_text = get_arc_patch(lines, radius=(1.5, 1.5), reverse=True, flip=True)
-    ax0.add_artist(arc)
-    ax0.text(**angle_text)
-    ANGLE_LR = angle_text["s"]
+    center = (IP_CP_X, IP_CP_Z)
+    p1 = np.array([(IP_CP_X, IP_CP_Z), (IP_LR_X, IP_CP_Z)])
+    p2 = np.array([(IP_CP_X, IP_CP_Z), (IP_LR_X, IP_LR_Z)])
+    
+    a=np.array([IP_LR_X, IP_CP_Z])
+    b=np.array([IP_CP_X, IP_CP_Z])
+    c=np.array([IP_LR_X, IP_LR_Z])
+    ANGLE_LR = round(np.degrees(getAngle(a, b, c)), 2)
+    if IP_LR_Z>IP_CP_Z:
+        am0 = AngleAnnotation(center, p2[1], p1[1], ax=ax0, size=100, text=ANGLE_LR, linewidth=3, zorder=10)
+    else:
+        am0 = AngleAnnotation(center, p1[1], p2[1], ax=ax0, size=100, text=ANGLE_LR, linewidth=3, zorder=10)
 
     # LEFT LATEROTRUSION
-    line1 = np.array([(IP_CP_X, IP_CP_Z), (IP_LL_X, IP_CP_Z)])
-    line2 = np.array([(IP_CP_X, IP_CP_Z), (IP_LL_X, IP_LL_Z)])
-    lines = [line1, line2]
-    for line in lines:
-        x, y = line.T
-    arc, angle_text = get_arc_patch(lines, radius=(1.5, 1.5))
-    ax0.add_artist(arc)
-    ax0.text(**angle_text)
-    ANGLE_LL = angle_text["s"]
+    center = (IP_CP_X, IP_CP_Z)
+    p1 = np.array([(IP_CP_X, IP_CP_Z), (IP_LL_X, IP_CP_Z)])
+    p2 = np.array([(IP_CP_X, IP_CP_Z), (IP_LL_X, IP_LL_Z)])
+
+    a=np.array([IP_LL_X, IP_CP_Z])
+    b=np.array([IP_CP_X, IP_CP_Z])
+    c=np.array([IP_LL_X, IP_LL_Z])
+    ANGLE_LL = round(np.degrees(getAngle(a, b, c)), 2)
+    
+    if IP_LL_Z>IP_CP_Z:
+        am1 = AngleAnnotation(center, p1[1], p2[1], ax=ax0, size=100, text=ANGLE_LL, linewidth=3, zorder=10)
+    else:
+        am1 = AngleAnnotation(center, p2[1], p1[1], ax=ax0, size=100, text=ANGLE_LL, linewidth=3, zorder=10)
 
     # OPENING DEVIATION
-    line1 = np.array([(IP_CP_X, IP_CP_Z), (IP_MO_X, IP_MO_Z)])
-    line2 = np.array([(IP_CP_X - 0.00001, IP_CP_Z), (IP_CP_X, IP_MO_Z)])
-    lines = [line1, line2]
-    for line in lines:
-        x, y = line.T
-    arc, angle_text = get_arc_patch(lines, radius=(5, 5))
-    ax0.add_artist(arc)
-    ax0.text(**angle_text)
-    ANGLE_OD = angle_text["s"]
+    center = (IP_CP_X, IP_CP_Z)
+    p1 = np.array([(IP_CP_X, IP_CP_Z), (IP_MO_X, IP_MO_Z)])
+    p2 = np.array([(IP_CP_X, IP_CP_Z), (IP_CP_X, IP_MO_Z)])
 
+    a=np.array([IP_MO_X, IP_MO_Z])
+    b=np.array([IP_CP_X, IP_CP_Z])
+    c=np.array([IP_CP_X, IP_MO_Z])
+    ANGLE_OD = round(np.degrees(getAngle(a, b, c)), 2)
+    if IP_MO_X<IP_CP_X:
+        am3 = AngleAnnotation(center, p1[1], p2[1], ax=ax0, size=275, text=ANGLE_OD, linewidth=3, zorder=10)
+        OD_side=str('right')
+    else:
+        am3 = AngleAnnotation(center, p2[1], p1[1], ax=ax0, size=275, text=ANGLE_OD, linewidth=3, zorder=10)
+        OD_side=str('left')
+    print(OD_side)
     # SAGITTAL PLANE############################################################################
     ax1 = fig.add_subplot(spec[0:2, 2:4])
     ax1.patch.set_facecolor("whitesmoke")
     plt.gca().invert_xaxis()
+    ax1.axis('equal')
     ax1.set_title("Sagittal Plane (incisal point)")
     ax1.set(xlabel="Y axis, mm", ylabel="Z axis, mm")
-    ax1.xaxis.set_major_locator(MultipleLocator(1))
-    ax1.yaxis.set_major_locator(MultipleLocator(1))
+    ax1.xaxis.set_major_locator(MultipleLocator(5))
+    ax1.yaxis.set_major_locator(MultipleLocator(5))
+    ax1.xaxis.set_minor_locator(MultipleLocator(1))
+    ax1.yaxis.set_minor_locator(MultipleLocator(1))
+    ax1.grid(which="minor", color="#e4e4e4", linestyle="--")
     ax1.grid(which="major", color="#CCCCCC", linestyle="--")
     ax1.plot(IP_Y_Array, IP_Z_Array, color="dimgray", linewidth=0.5)
     ax1.grid(True)
@@ -3562,16 +3605,20 @@ def JTrackRepportPlot(ImgFolder):
     # ANGLES
 
     # PROTRUSION
-    line1 = np.array([(IP_CP_Y, IP_CP_Z), (IP_PP_Y, IP_PP_Z)])
-    line2 = np.array([(IP_CP_Y, IP_CP_Z), (IP_PP_Y, IP_CP_Z)])
+    center = (IP_CP_Y, IP_CP_Z)
+    p1 = np.array([(IP_CP_Y, IP_CP_Z), (IP_PP_Y, IP_PP_Z)])
+    p2 = np.array([(IP_CP_Y, IP_CP_Z), (IP_PP_Y, IP_CP_Z)])
 
-    lines = [line1, line2]
-    for line in lines:
-        x, y = line.T
-    arc, angle_text = get_arc_patch(lines, radius=(1.5, 1.5), flip=True)
-    ax1.add_artist(arc)
-    ax1.text(**angle_text)
-    ANGLE_Rrot = angle_text["s"]
+    a=np.array([IP_PP_Y, IP_PP_Z])
+    b=np.array([IP_CP_Y, IP_CP_Z])
+    c=np.array([IP_PP_Y, IP_CP_Z])
+    ANGLE_Rrot = round(np.degrees(getAngle(a, b, c)), 2)
+    if IP_PP_Z<IP_CP_Z:
+        am4 = AngleAnnotation(center, p1[1], p2[1], ax=ax1, size=100, text=ANGLE_Rrot, linewidth=3, zorder=10)
+    else:
+        am4 = AngleAnnotation(center, p2[1], p1[1], ax=ax1, size=100, text=ANGLE_Rrot, linewidth=3, zorder=10)
+
+
 
     # INFO PLOTS########################################################################
 
@@ -3584,13 +3631,18 @@ def JTrackRepportPlot(ImgFolder):
         0.0,
         1.2,
         "Laterotrusion Right = "
-        + ANGLE_LR
+        + str(ANGLE_LR)
+        + "°"
         + "\n"
         + "Laterotrusion Left = "
-        + ANGLE_LL
+        + str(ANGLE_LL)
+        + "°"
         + "\n"
         + "Opening deviation = "
-        + ANGLE_OD,
+        + OD_side
+        + " "
+        + str(ANGLE_OD)
+        + "°",
     )
 
     axI2 = fig.add_subplot(infospec[4, 2])
@@ -3600,7 +3652,8 @@ def JTrackRepportPlot(ImgFolder):
         0.0,
         1.2,
         "Incisal point protrusion = "
-        + ANGLE_Rrot
+        + str(ANGLE_Rrot)
+        + "°"
         + "\n"
         + "Maximum opening = "
         + str(MaxOpen)
@@ -3660,7 +3713,15 @@ def JTrackRepportPlot(ImgFolder):
 
     # RIGHT COND SAGITTAL PLANE
     ax2 = fig.add_subplot(spec[2:4, 0:2])
+    ax2.axis('equal')
     plt.gca().invert_xaxis()
+    ax2.xaxis.set_major_locator(MultipleLocator(5))
+    ax2.yaxis.set_major_locator(MultipleLocator(5))
+    ax2.xaxis.set_minor_locator(MultipleLocator(1))
+    ax2.yaxis.set_minor_locator(MultipleLocator(1))
+    ax2.grid(which="minor", color="#b8b8b8", linestyle="--")
+    ax2.grid(which="major", color="#959595", linestyle="--")
+
     ax2.patch.set_facecolor("lightskyblue")
     ax2.set_title("Sagittal Plane (right condile)")
     ax2.set(xlabel="Y axis, mm", ylabel="Z axis, mm")
@@ -3708,16 +3769,21 @@ def JTrackRepportPlot(ImgFolder):
         ms=6,
     )
 
-    # ANGLE OF CONDYLAR GUIDANCE
-    line1 = np.array([(RC_CP_Y, RC_CP_Z), (RC_PP_Y, RC_CP_Z)])
-    line2 = np.array([(RC_CP_Y, RC_CP_Z), (RC_PP_Y, RC_PP_Z)])
-    lines = [line1, line2]
-    for line in lines:
-        x, y = line.T
-    arc, angle_text = get_arc_patch(lines, radius=(1, 1), reverse=True, flip=True)
-    ax2.add_artist(arc)
-    ax2.text(**angle_text)
-    ANGLE_RC_Rrot = angle_text["s"]
+
+    #ANGLE OF CONDYLAR GUIDANCE
+    center = (RC_CP_Y, RC_CP_Z)
+    p1 = np.array([(RC_CP_Y, RC_CP_Z), (RC_PP_Y, RC_CP_Z)])
+    p2 = np.array([(RC_CP_Y, RC_CP_Z), (RC_PP_Y, RC_PP_Z)])
+
+    a=np.array([RC_PP_Y, RC_CP_Z])
+    b=np.array([RC_CP_Y, RC_CP_Z])
+    c=np.array([RC_PP_Y, RC_PP_Z])
+    ANGLE_RC_Rrot = round(np.degrees(getAngle(a, b, c)), 2)
+    if RC_PP_Z>RC_CP_Z:
+        am5 = AngleAnnotation(center, p1[1], p2[1], ax=ax2, size=200, text=ANGLE_RC_Rrot, linewidth=3, zorder=10)
+    else:
+        am5 = AngleAnnotation(center, p2[1], p1[1], ax=ax2, size=200, text=ANGLE_RC_Rrot, linewidth=3, zorder=10)
+
 
     ax = fig.add_subplot(spec[3, 0])
     image = plt.imread(join(ImgFolder, "rightright.png"))
@@ -3727,6 +3793,14 @@ def JTrackRepportPlot(ImgFolder):
     ################################################################################################
     # LEFT COND SAGITTAL PLANE
     ax3 = fig.add_subplot(spec[2:4, 2:4])
+    ax3.axis('equal')
+    ax3.xaxis.set_major_locator(MultipleLocator(5))
+    ax3.yaxis.set_major_locator(MultipleLocator(5))
+    ax3.xaxis.set_minor_locator(MultipleLocator(1))
+    ax3.yaxis.set_minor_locator(MultipleLocator(1))
+    ax3.grid(which="minor", color="#b8b8b8", linestyle="--")
+    ax3.grid(which="major", color="#959595", linestyle="--")
+
     ax3.patch.set_facecolor("antiquewhite")
     ax3.set_title("Sagittal Plane (left condile)")
     ax3.set(xlabel="Y axis, mm", ylabel="Z axis, mm")
@@ -3775,25 +3849,49 @@ def JTrackRepportPlot(ImgFolder):
     )
 
     # ANGLE OF CONDYLAR GUIDANCE
+    center=(LC_CP_Y, LC_CP_Z)
+    p1 = np.array([(LC_CP_Y, LC_CP_Z), (LC_PP_Y, LC_CP_Z)])
+    p2 = np.array([(LC_CP_Y, LC_CP_Z), (LC_PP_Y, LC_PP_Z)])
+    a=np.array([LC_PP_Y, LC_CP_Z])
+    b=np.array([LC_CP_Y, LC_CP_Z])
+    c=np.array([LC_PP_Y, LC_PP_Z])
+    ANGLE_LC_Lrot = round(np.degrees(getAngle(a, b, c)), 2)
+    if LC_PP_Z<LC_CP_Z:
+        am6 = AngleAnnotation(center, p1[1], p2[1], ax=ax3, size=200, text=ANGLE_LC_Lrot, linewidth=3, zorder=10)
+    else:
+        am6 = AngleAnnotation(center, p2[1], p1[1], ax=ax3, size=200, text=ANGLE_LC_Lrot, linewidth=3, zorder=10)
 
-    line1 = np.array([(LC_CP_Y, LC_CP_Z), (LC_PP_Y, LC_CP_Z)])
-    line2 = np.array([(LC_CP_Y, LC_CP_Z), (LC_PP_Y, LC_PP_Z)])
-    lines = [line1, line2]
-    for line in lines:
-        x, y = line.T
-    arc, angle_text = get_arc_patch(lines, radius=(1, 1), reverse=True, flip=True)
-    ax3.add_artist(arc)
-    ax3.text(**angle_text)
-    ANGLE_LC_Lrot = angle_text["s"]
 
     ax = fig.add_subplot(spec[3, 3])
     image = plt.imread(join(ImgFolder, "leftleft.png"))
     ax.imshow(image, alpha=headimgalpha)
     ax.axis("off")
 
+
+    # INFO PLOTS########################################################################
+    axI3 = fig.add_subplot(infospec[7, 0])
+    axI3.grid(False)
+    plt.axis("off")
+
+    axI3.text(0.0, -0.6, "RIGHT TMJ" + "\n" + "Angle of condylar guidance = " + str(ANGLE_RC_Rrot) + "°")
+
+    axI3 = fig.add_subplot(infospec[7, 2])
+    axI3.grid(False)
+    plt.axis("off")
+    axI3.text(0.0, -0.6, "LEFT TMJ" + "\n" + "Angle of condylar guidance = " + str(ANGLE_LC_Lrot) + "°")
+
+
     ################################################################################################
     # RIGHT COND TRANSVERCE PLANE
     ax4 = fig.add_subplot(spec[4:6, 0:2])
+    ax4.axis('equal')
+    ax4.xaxis.set_major_locator(MultipleLocator(5))
+    ax4.yaxis.set_major_locator(MultipleLocator(5))
+    ax4.xaxis.set_minor_locator(MultipleLocator(1))
+    ax4.yaxis.set_minor_locator(MultipleLocator(1))
+    ax4.grid(which="minor", color="#b8b8b8", linestyle="--")
+    ax4.grid(which="major", color="#959595", linestyle="--")
+
     ax4.patch.set_facecolor("lightskyblue")
     ax4.set_title("Axial Plane (right condile)")
     ax4.set(xlabel="X axis, mm", ylabel="Y axis, mm")
@@ -3869,30 +3967,32 @@ def JTrackRepportPlot(ImgFolder):
     ax.axis("off")
 
     # BENNETT ANGLE
-    line1 = np.array([(RC_CP_X, RC_CP_Y), (RC_LL_X, RC_LL_Y)])
-    line2 = np.array([(RC_CP_X - 0.00001, RC_CP_Y), (RC_CP_X, RC_PP_Y)])
-    lines = [line1, line2]
-    for line in lines:
-        x, y = line.T
-    arc, angle_text = get_arc_patch(lines, radius=(1, 1))
-    ax4.add_artist(arc)
-    ax4.text(**angle_text)
-    ANGLE_RBen = angle_text["s"]
+    center = (RC_CP_X, RC_CP_Y)
+    p1 = np.array([(RC_CP_X, RC_CP_Y), (RC_LL_X, RC_LL_Y)])
+    p2 = np.array([(RC_CP_X, RC_CP_Y), (RC_CP_X, RC_PP_Y)])
 
-    # INFO PLOTS########################################################################
-    axI3 = fig.add_subplot(infospec[7, 0])
-    axI3.grid(False)
-    plt.axis("off")
-    axI3.text(0.0, -0.6, "Angle of condylar guidance = " + ANGLE_RC_Rrot)
+    a=np.array([RC_LL_X, RC_LL_Y])
+    b=np.array([RC_CP_X, RC_CP_Y])
+    c=np.array([RC_CP_X, RC_PP_Y])
+    ANGLE_RBen = round(np.degrees(getAngle(a, b, c)), 2)
+    if RC_LL_X<RC_CP_X:
+        am7 = AngleAnnotation(center, p1[1], p2[1], ax=ax4, size=200, text=ANGLE_RBen, linewidth=3, zorder=10)
+    else:
+        am7 = AngleAnnotation(center, p2[1], p1[1], ax=ax4, size=200, text=ANGLE_RBen, linewidth=3, zorder=10)
 
-    axI3 = fig.add_subplot(infospec[7, 2])
-    axI3.grid(False)
-    plt.axis("off")
-    axI3.text(0.0, -0.6, "Angle of condylar guidance = " + ANGLE_LC_Lrot)
+
 
     ################################################################################################
     # LEFT COND TRANSVERCE PLANE
     ax5 = fig.add_subplot(spec[4:6, 2:4])
+    ax5.axis('equal')
+    ax5.xaxis.set_major_locator(MultipleLocator(5))
+    ax5.yaxis.set_major_locator(MultipleLocator(5))
+    ax5.xaxis.set_minor_locator(MultipleLocator(1))
+    ax5.yaxis.set_minor_locator(MultipleLocator(1))
+    ax5.grid(which="minor", color="#b8b8b8", linestyle="--")
+    ax5.grid(which="major", color="#959595", linestyle="--")
+
     ax5.patch.set_facecolor("antiquewhite")
     ax5.set_title("Axial Plane (left condile)")
     ax5.set(xlabel="X axis, mm", ylabel="Y axis, mm")
@@ -3954,19 +4054,19 @@ def JTrackRepportPlot(ImgFolder):
     )
 
     # BENNETT ANGLE
+    center = (LC_CP_X, LC_CP_Y)
+    p1 = np.array([(LC_CP_X, LC_CP_Y), (LC_LR_X, LC_LR_Y)])
+    p2 = np.array([(LC_CP_X, LC_CP_Y), (LC_CP_X, LC_PP_Y)])
 
-    line1 = np.array([(LC_CP_X, LC_CP_Y), (LC_LR_X, LC_LR_Y)])
-    line2 = np.array([(LC_CP_X - 0.00001, LC_CP_Y), (LC_CP_X, LC_PP_Y)])
+    a=np.array([LC_LR_X, LC_LR_Y])
+    b=np.array([LC_CP_X, LC_CP_Y])
+    c=np.array([LC_CP_X, LC_PP_Y])
+    ANGLE_LBen = round(np.degrees(getAngle(a, b, c)), 2)
+    if LC_LR_X<LC_CP_X:
+        am8 = AngleAnnotation(center, p1[1], p2[1], ax=ax5, size=200, text=ANGLE_LBen, linewidth=3, zorder=10)
+    else:
+        am8 = AngleAnnotation(center, p2[1], p1[1], ax=ax5, size=200, text=ANGLE_LBen, linewidth=3, zorder=10)
 
-    lines = [line1, line2]
-    for line in lines:
-        x, y = line.T
-    arc, angle_text = get_arc_patch(
-        lines, radius=(1, 1), reverse=True, obtuse=True, flip=True
-    )
-    ax5.add_artist(arc)
-    ax5.text(**angle_text)
-    ANGLE_LBen = angle_text["s"]
 
     ax = fig.add_subplot(spec[5, 3])
     image = plt.imread(join(ImgFolder, "lefttop.png"))
@@ -3986,7 +4086,8 @@ def JTrackRepportPlot(ImgFolder):
         "RIGHT TMJ"
         + "\n"
         + "Bennett angle = "
-        + ANGLE_RBen
+        + str(ANGLE_RBen)
+        + "°"        
         + "\n"
         + "Bennett shift = "
         + str(RightShift)
@@ -4002,7 +4103,8 @@ def JTrackRepportPlot(ImgFolder):
         "LEFT TMJ"
         + "\n"
         + "Bennett angle = "
-        + ANGLE_LBen
+        + str(ANGLE_LBen)
+        + "°"
         + "\n"
         + "Bennett shift = "
         + str(LeftShift)
@@ -4011,72 +4113,122 @@ def JTrackRepportPlot(ImgFolder):
 
     return fig
 
+def getAngle(a, b, c):
+    ba = a - b
+    bc = c - b
+    cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))
+    angle = np.arccos(cosine_angle)
+    return angle
 
-def get_arc_patch(
-    lines, radius=None, flip=False, obtuse=False, reverse=False, dec=2, fontsize=12
-):
 
-    Arc = matplotlib.patches.Arc
-    line1, line2 = lines
-    linedata = [np.array(line.T) for line in lines]
-    scales = [np.diff(line).T[0] for line in linedata]
-    scales = [s[1] / s[0] for s in scales]
+class AngleAnnotation(Arc):
+    """
+    Draws an arc between two vectors which appears circular in display space.
+    """
+    def __init__(self, xy, p1, p2, size=75, unit="points", ax=None,
+                 text="", textposition="outside", text_kw=None, **kwargs):
+        
+        self.ax = ax or plt.gca()
+        self._xydata = xy  # in data coordinates
+        self.vec1 = p1
+        self.vec2 = p2
+        self.size = size
+        self.unit = unit
+        self.textposition = textposition
 
-    # Get angle to horizontal
-    angles = np.array([np.rad2deg(np.arctan(s / 1)) for s in scales])
-    if obtuse:
-        angles[1] = angles[1] + 180
-    if flip:
-        angles += 180
-    if reverse:
-        angles = angles[::-1]
+        super().__init__(self._xydata, size, size, angle=0.0,
+                         theta1=self.theta1, theta2=self.theta2, **kwargs)
 
-    angle = abs(angles[1] - angles[0])
+        self.set_transform(IdentityTransform())
+        self.ax.add_patch(self)
 
-    if radius is None:
-        lengths = np.linalg.norm(lines, axis=(0, 1))
-        radius = min(lengths) / 2
+        self.kw = dict(ha="center", va="center",
+                       xycoords=IdentityTransform(),
+                       xytext=(0, 0), textcoords="offset points",
+                       annotation_clip=True)
+        self.kw.update(text_kw or {})
+        self.text = ax.annotate(text, xy=self._center, **self.kw)
 
-    # Solve the point of intersection between the lines:
-    t, s = np.linalg.solve(
-        np.array([line1[1] - line1[0], line2[0] - line2[1]]).T, line2[0] - line1[0]
-    )
+    def get_size(self):
+        factor = 1.
+        if self.unit == "points":
+            factor = self.ax.figure.dpi / 72.
+        elif self.unit[:4] == "axes":
+            b = TransformedBbox(Bbox.from_bounds(0, 0, 1, 1),
+                                self.ax.transAxes)
+            dic = {"max": max(b.width, b.height),
+                   "min": min(b.width, b.height),
+                   "width": b.width, "height": b.height}
+            factor = dic[self.unit[5:]]
+        return self.size * factor
 
-    intersection = np.array((1 - t) * line1[0] + t * line1[1])
-    # Check if radius is a single value or a tuple
-    try:
-        r1, r2 = radius
-    except:
-        r1 = r2 = radius
-    arc = Arc(
-        intersection,
-        2 * r1,
-        2 * r2,
-        theta1=angles[1],
-        theta2=angles[0],
-        linestyle="-",
-        color="black",
-        linewidth=4,
-    )
+    def set_size(self, size):
+        self.size = size
 
-    half = halfangle(*angles[::-1])
-    sin = np.sin(np.deg2rad(half))
-    cos = np.cos(np.deg2rad(half))
-    r = r1 * r2 / (r1 ** 2 * sin ** 2 + r2 ** 2 * cos ** 2) ** 0.5
-    xy = np.array((r * cos, r * sin))
-    xy = intersection + xy * 1.5
+    def get_center_in_pixels(self):
+        """return center in pixels"""
+        return self.ax.transData.transform(self._xydata)
 
-    textangle = half if half > 270 or half < 90 else 180 + half
-    textkwargs = {
-        "x": xy[0],
-        "y": xy[1],
-        "s": str(round(angle, dec)) + "°",
-        "ha": "center",
-        "va": "center",
-        "fontsize": fontsize,
-        "rotation": textangle,
-    }
-    return arc, textkwargs
+    def set_center(self, xy):
+        """set center in data coordinates"""
+        self._xydata = xy
+
+    def get_theta(self, vec):
+        vec_in_pixels = self.ax.transData.transform(vec) - self._center
+        return np.rad2deg(np.arctan2(vec_in_pixels[1], vec_in_pixels[0]))
+
+    def get_theta1(self):
+        return self.get_theta(self.vec1)
+
+    def get_theta2(self):
+        return self.get_theta(self.vec2)
+
+    def set_theta(self, angle):
+        pass
+
+    # Redefine attributes of the Arc to always give values in pixel space
+    _center = property(get_center_in_pixels, set_center)
+    theta1 = property(get_theta1, set_theta)
+    theta2 = property(get_theta2, set_theta)
+    width = property(get_size, set_size)
+    height = property(get_size, set_size)
+
+    # The following two methods are needed to update the text position.
+    def draw(self, renderer):
+        self.update_text()
+        super().draw(renderer)
+
+    def update_text(self):
+        c = self._center
+        s = self.get_size()
+        angle_span = (self.theta2 - self.theta1) % 360
+        angle = np.deg2rad(self.theta1 + angle_span / 2)
+        r = s / 2
+        if self.textposition == "inside":
+            r = s / np.interp(angle_span, [60, 90, 135, 180],
+                                          [3.3, 3.5, 3.8, 4])
+        self.text.xy = c + r * np.array([np.cos(angle), np.sin(angle)])
+        if self.textposition == "outside":
+            def R90(a, r, w, h):
+                if a < np.arctan(h/2/(r+w/2)):
+                    return np.sqrt((r+w/2)**2 + (np.tan(a)*(r+w/2))**2)
+                else:
+                    c = np.sqrt((w/2)**2+(h/2)**2)
+                    T = np.arcsin(c * np.cos(np.pi/2 - a + np.arcsin(h/2/c))/r)
+                    xy = r * np.array([np.cos(a + T), np.sin(a + T)])
+                    xy += np.array([w/2, h/2])
+                    return np.sqrt(np.sum(xy**2))
+
+            def R(a, r, w, h):
+                aa = (a % (np.pi/4))*((a % (np.pi/2)) <= np.pi/4) + \
+                     (np.pi/4 - (a % (np.pi/4)))*((a % (np.pi/2)) >= np.pi/4)
+                return R90(aa, r, *[w, h][::int(np.sign(np.cos(2*a)))])
+
+            bbox = self.text.get_window_extent()
+            X = R(angle, r, bbox.width, bbox.height)
+            trans = self.ax.figure.dpi_scale_trans.inverted()
+            offs = trans.transform(((X-s/2), 0))[0] * 72
+            self.text.set_position([offs*np.cos(angle), offs*np.sin(angle)])
 
 
 class MyApp(QWidget):
@@ -4139,13 +4291,14 @@ def GetEmptyMovementsArray(EmptyName, FrameStart=None, FrameEnd=None):
         return None
 
 
-def GetPeakPointCouples(IP, RCP, LCP, Dist=50):
+def GetPeakPointCouples(IP, RCP, LCP, DIST):
 
     if bpy.context.scene.render.fps >= 40:
         DIST = 100
     else:
         DIST = 50
 
+    print(DIST)
     LC_Array = GetEmptyMovementsArray(EmptyName=LCP.name)
     LC_X_Array, LC_Y_Array, LC_Z_Array = (
         LC_Array[:, 0],
@@ -4165,7 +4318,7 @@ def GetPeakPointCouples(IP, RCP, LCP, Dist=50):
 
     IP_X_Min, IP_Y_Min, IP_Z_Min = np.min(IP_Array, axis=0)
     IP_X_Max, IP_Y_Max, IP_Z_Max = np.max(IP_Array, axis=0)
-    IP_X_Averrage, IP_Y_Averrage, IP_Z_Averrage = np.mean(IP_Array, axis=0)
+   #IP_X_Averrage, IP_Y_Averrage, IP_Z_Averrage = np.mean(IP_Array, axis=0)
 
     ###################################################################################
     # PEAKS
@@ -4182,13 +4335,12 @@ def GetPeakPointCouples(IP, RCP, LCP, Dist=50):
     peaksY_Open, _ = find_peaks(
         IP_Y_Array, height=(IP_Y_Max + IP_Y_Max / 40, IP_Y_Max), distance=DIST
     )
-    peaksZ_Open, _ = find_peaks(
-        -IP_Z_Array, height=(-IP_Z_Min + IP_Z_Min / 40, -IP_Z_Min), distance=DIST
-    )
+    #peaksZ_Open, _ = find_peaks(
+    #    -IP_Z_Array, height=(-IP_Z_Min + IP_Z_Min / 40, -IP_Z_Min), distance=DIST
+    #)
     peaksZ_Central, _ = find_peaks(
         IP_Z_Array, height=(IP_Z_Max + IP_Z_Max / 40, IP_Z_Max), distance=DIST
     )
-
     ###################################################################################
     # POINTS
     ###################################################################################

@@ -12,7 +12,7 @@ import bgl
 import blf
 
 # Blender Imports :
-import bpy
+import bpy, bpy_extras
 from mathutils import Matrix, Vector, Euler, kdtree
 from bpy.props import (
     StringProperty,
@@ -196,20 +196,17 @@ def Load_Dicom_funtion(context, q):
         Preffixs = list(DcmInfoDict.keys())
 
         for i in range(1, 100):
-            Preffix = f"BD{i:03}"
+            Preffix = f"BD4D{i:03}"
             if not Preffix in Preffixs:
                 break
 
         Split = split(UserProjectDir)
-        ProjectName = Split[-1] or Split[-2]
+        ProjectName = Split[-1] or split(Split[0])[-1]
         BlendFile = f"{ProjectName}_CT-SCAN.blend"
         Blendpath = join(UserProjectDir, BlendFile)
 
-        if not exists(Blendpath) or bpy.context.blend_data.filepath == Blendpath:
-            bpy.ops.wm.save_as_mainfile(filepath=Blendpath)
-        else:
-            bpy.ops.wm.save_mainfile()
-
+        bpy.ops.wm.save_as_mainfile(filepath=Blendpath)
+        
         # Start Reading Dicom data :
         ######################################################################################
         Series_reader = sitk.ImageSeriesReader()
@@ -520,20 +517,16 @@ def Load_3DImage_function(context, q):
         Preffixs = list(DcmInfoDict.keys())
 
         for i in range(1, 100):
-            Preffix = f"BD{i:03}"
+            Preffix = f"BD4D{i:03}"
             if not Preffix in Preffixs:
                 break
         ########################################################
         Split = split(UserProjectDir)
-        ProjectName = Split[-1] or Split[-2]
+        ProjectName = Split[-1] or split(Split[0])[-1]
         BlendFile = f"{ProjectName}_CT-SCAN.blend"
         Blendpath = join(UserProjectDir, BlendFile)
 
-        if not exists(Blendpath) or bpy.context.blend_data.filepath == Blendpath:
-            bpy.ops.wm.save_as_mainfile(filepath=Blendpath)
-        else:
-            bpy.ops.wm.save_mainfile()
-        Image3D = sitk.ReadImage(UserImageFile)
+        bpy.ops.wm.save_as_mainfile(filepath=Blendpath)
 
         # Start Reading Dicom data :
         ######################################################################################
@@ -592,8 +585,7 @@ def Load_3DImage_function(context, q):
 
         # Set DcmInfo :
 
-        DcmInfo = dict(
-            {
+        DcmInfo = {
                 "UserProjectDir": RelPath(UserProjectDir),
                 "Preffix": Preffix,
                 "RenderSz": Sz,
@@ -612,10 +604,9 @@ def Load_3DImage_function(context, q):
                 "VtkTransform_4x4": VtkTransform_4x4,
                 "VolumeCenter": VCenter,
             }
-        )
+        
 
-        tags = dict(
-            {
+        tags = {
                 "StudyDate": "0008|0020",
                 "PatientName": "0010|0010",
                 "PatientID": "0010|0020",
@@ -623,7 +614,7 @@ def Load_3DImage_function(context, q):
                 "WinCenter": "0028|1050",
                 "WinWidth": "0028|1051",
             }
-        )
+        
 
         for k, tag in tags.items():
 
@@ -727,7 +718,7 @@ def Load_3DImage_function(context, q):
         finish = Tcounter()
         print(f"Data Loaded in {finish-start} second(s)")
         #############################################################################################
-
+        
         return DcmInfo
 
 
@@ -757,7 +748,7 @@ class BDENTAL_4D_OT_Volume_Render(bpy.types.Operator):
             DcmInfo = Load_Dicom_funtion(context, self.q)
         if DataType == "3D Image File":
             DcmInfo = Load_3DImage_function(context, self.q)
-
+        
         UserProjectDir = AbsPath(BDENTAL_4D_Props.UserProjectDir)
         Preffix = DcmInfo["Preffix"]
         Wmin = DcmInfo["Wmin"]
@@ -874,7 +865,7 @@ class BDENTAL_4D_OT_AddSlices(bpy.types.Operator):
                 return {"CANCELLED"}
             else:
                 Vol = Active_Obj
-                Preffix = Vol.name[:5]
+                Preffix = Vol.name.split('_')[0]
                 DcmInfoDict = eval(BDENTAL_4D_Props.DcmInfo)
                 DcmInfo = DcmInfoDict[Preffix]
 
@@ -1113,13 +1104,10 @@ class BDENTAL_4D_OT_MultiTreshSegment(bpy.types.Operator):
             ShowMessageBox(message=message, icon="COLORSET_02_VEC")
             return {"CANCELLED"}
         else:
-            Conditions = [
-                not Active_Obj.name.startswith("BD"),
-                not Active_Obj.name.endswith("_CTVolume"),
-                Active_Obj.select_get() == False,
-            ]
+            Condition = CheckString(Active_Obj.name,["BD4D", "_CTVolume"]) and Active_Obj.select_get()
+            
 
-            if Conditions[0] or Conditions[1] or Conditions[2]:
+            if not Condition :
                 message = [" Please select CTVOLUME for segmentation ! "]
                 ShowMessageBox(message=message, icon="COLORSET_02_VEC")
                 return {"CANCELLED"}
@@ -1170,7 +1158,7 @@ class BDENTAL_4D_OT_MultiTreshSegment(bpy.types.Operator):
                 else:
 
                     self.Vol = Active_Obj
-                    self.Preffix = self.Vol.name[:5]
+                    self.Preffix = self.Vol.name.split('_')[0]
                     DcmInfoDict = eval(BDENTAL_4D_Props.DcmInfo)
                     self.DcmInfo = DcmInfoDict[self.Preffix]
                     self.Nrrd255Path = AbsPath(self.DcmInfo["Nrrd255Path"])
@@ -1561,11 +1549,10 @@ class BDENTAL_4D_OT_MultiView(bpy.types.Operator):
             return {"CANCELLED"}
         else:
             N = Active_Obj.name
-            Condition = (
-                N.startswith("BD")
-                and ["_CTVolume" in N or "SEGMENTATION" in N or "_SLICES_POINTER" in N]
-                and Active_Obj.select_get() == True
-            )
+            Condition = [CheckString (N, ["BD4D", "_CTVolume"]) or \
+                        CheckString (N, ["BD4D", "SEGMENTATION"]) or \
+                        CheckString (N, ["BD4D", "_SLICES_POINTER"])] and \
+                        Active_Obj.select_get()
 
             if not Condition:
                 message = [
@@ -1574,7 +1561,7 @@ class BDENTAL_4D_OT_MultiView(bpy.types.Operator):
                 ShowMessageBox(message=message, icon="COLORSET_02_VEC")
                 return {"CANCELLED"}
             else:
-                Preffix = Active_Obj.name[:5]
+                Preffix = N.split('_')[0]
                 AxialPlane = bpy.data.objects.get(f"1_{Preffix}_AXIAL_SLICE")
                 CoronalPlane = bpy.data.objects.get(f"2_{Preffix}_CORONAL_SLICE")
                 SagitalPlane = bpy.data.objects.get(f"3_{Preffix}_SAGITAL_SLICE")
@@ -1818,10 +1805,12 @@ class BDENTAL_4D_OT_AddReferencePlanes(bpy.types.Operator):
             ShowMessageBox(message=message, icon="COLORSET_02_VEC")
             return {"CANCELLED"}
         else:
-            ValidTarget = Active_Obj.name.startswith("BD") and Active_Obj.name.endswith(
-                ("_CTVolume", "SEGMENTATION")
-            )
-            if Active_Obj.select_get() == False or not ValidTarget:
+            N = Active_Obj.name
+            Condition = CheckString (N, ["BD4D"] ) and \
+                        CheckString (N, ["_CTVolume", "SEGMENTATION"], any) and \
+                        Active_Obj.select_get()
+            
+            if not Condition :
                 message = [
                     " Please select Target Object ! ",
                     "Target Object should be a CTVolume or a Segmentation",
@@ -1859,7 +1848,7 @@ class BDENTAL_4D_OT_AddReferencePlanes(bpy.types.Operator):
                     self.TargetObject = Active_Obj
                     self.visibleObjects = bpy.context.visible_objects.copy()
                     self.MarkupVoxelMode = self.TargetObject.name.endswith("_CTVolume")
-                    self.Preffix = self.TargetObject.name[:5]
+                    self.Preffix = self.TargetObject.name.split('_')[0]
                     DcmInfo = self.BDENTAL_4D_Props.DcmInfo
                     self.DcmInfo = eval(DcmInfo)
                     Override, area3D, space3D = CtxOverride(context)
@@ -1911,7 +1900,7 @@ class BDENTAL_4D_OT_AddMarkupPoint(bpy.types.Operator):
         bpy.ops.object.mode_set(mode="OBJECT")
 
         if self.MarkupVoxelMode:
-            Preffix = self.TargetObject.name[:5]
+            Preffix = self.TargetObject.name.split('_')[0]
             CursorToVoxelPoint(Preffix=Preffix, CursorMove=True)
 
         Co = context.scene.cursor.location
@@ -1949,9 +1938,7 @@ class BDENTAL_4D_OT_AddMarkupPoint(bpy.types.Operator):
             else:
                 self.mode = Active_Obj.mode
                 self.TargetObject = Active_Obj
-                self.MarkupVoxelMode = self.TargetObject.name.startswith(
-                    "BD"
-                ) and self.TargetObject.name.endswith("_CTVolume")
+                self.MarkupVoxelMode = CheckString (self.TargetObject.name, ["BD4D", "_CTVolume"] ) 
                 wm = context.window_manager
                 return wm.invoke_props_dialog(self)
 
@@ -1973,7 +1960,10 @@ class BDENTAL_4D_OT_CtVolumeOrientation(bpy.types.Operator):
             return {"CANCELLED"}
 
         else:
-            if not Active_Obj.name.startswith("BD"):
+
+            Condition = CheckString (Active_Obj.name, ["BD4D"]) and  CheckString (Active_Obj.name, ["_CTVolume", 'Segmentation'], any ) 
+            
+            if not Condition:
                 message = [
                     "CTVOLUME Orientation : ",
                     "Please select CTVOLUME or Segmentation! ",
@@ -1982,7 +1972,7 @@ class BDENTAL_4D_OT_CtVolumeOrientation(bpy.types.Operator):
                 return {"CANCELLED"}
 
             else:
-                Preffix = Active_Obj.name[:5]
+                Preffix = Active_Obj.name.split('_')[0]
                 DcmInfo = eval(BDENTAL_4D_Props.DcmInfo)
                 if not "Frankfort" in DcmInfo[Preffix].keys():
                     message = [
@@ -2033,12 +2023,10 @@ class BDENTAL_4D_OT_ResetCtVolumePosition(bpy.types.Operator):
             ShowMessageBox(message=message, icon="COLORSET_02_VEC")
             return {"CANCELLED"}
         else:
-            Conditions = [
-                not Active_Obj.name.startswith("BD"),
-                not Active_Obj.name.endswith(("_CTVolume", "SEGMENTATION")),
-            ]
+            Condition = CheckString (Active_Obj.name, ["BD4D"]) and  CheckString (Active_Obj.name, ["_CTVolume", 'Segmentation'], any ) 
 
-            if Conditions[0] or Conditions[1]:
+
+            if not Condition :
                 message = [
                     "Reset Position : ",
                     "Please select CTVOLUME or Segmentation! ",
@@ -2047,11 +2035,11 @@ class BDENTAL_4D_OT_ResetCtVolumePosition(bpy.types.Operator):
                 return {"CANCELLED"}
 
             else:
-                Preffix = Active_Obj.name[:5]
+                Preffix = Active_Obj.name.split('_')[0]
                 Vol = [
                     obj
                     for obj in bpy.data.objects
-                    if Preffix in obj.name and "_CTVolume" in obj.name
+                    if CheckString (obj.name, [Preffix, "_CTVolume"])
                 ][0]
                 DcmInfoDict = eval(BDENTAL_4D_Props.DcmInfo)
                 DcmInfo = DcmInfoDict[Preffix]
@@ -3152,7 +3140,7 @@ class BDENTAL_4D_OT_AlignPoints(bpy.types.Operator):
             # Add Target Refference point :
             if event.value == ("PRESS"):
                 if self.TargetVoxelMode:
-                    Preffix = self.TargetObject.name[:5]
+                    Preffix = self.TargetObject.name.split('_')[0]
                     CursorToVoxelPoint(Preffix=Preffix, CursorMove=True)
 
                 color = self.TargetColor
@@ -3169,7 +3157,7 @@ class BDENTAL_4D_OT_AlignPoints(bpy.types.Operator):
             # Add Source Refference point :
             if event.value == ("PRESS"):
                 if self.SourceVoxelMode:
-                    Preffix = self.SourceObject.name[:5]
+                    Preffix = self.SourceObject.name.split('_')[0]
                     CursorToVoxelPoint(Preffix=Preffix, CursorMove=True)
 
                 color = self.SourceColor
@@ -5490,8 +5478,14 @@ class BDENTAL_4D_OT_CurveCutterAdd2(bpy.types.Operator):
                 bpy.ops.object.select_all(action="DESELECT")
                 CuttingTarget.select_set(True)
                 bpy.context.view_layer.objects.active = CuttingTarget
-                # Hide everything but model :
-                bpy.ops.object.hide_view_set(unselected=True)
+                # Hide everything but model and cutters:
+                CuttingTarget.hide_set(False)
+                Cutters_Coll = bpy.data.collections.get("BDENTAL-4D Cutters")
+                if Cutters_Coll :
+                    Cutters_Objects = Cutters_Coll.objects
+                    if Cutters_Objects :
+                        [obj.hide_set(False) for obj in Cutters_Objects]
+                
 
                 CuttingCurveAdd2()
 
@@ -6359,251 +6353,125 @@ class BDENTAL_4D_OT_PaintCut(bpy.types.Operator):
 ###########################################################################
 # DSD Camera
 ###########################################################################
+#---------------------------------------------------------------
+# 3x4 P matrix from Blender camera
+#---------------------------------------------------------------
 
-
-# class BDENTAL_4D_OT_AddDsdCamera(bpy.types.Operator):
-#     """ Test Operator """
-
-#     bl_idname = "bdental4d.add_dsd_camera"
-#     bl_label = "DSD CAMERA"
-
+# Build intrinsic camera parameters from Blender camera data
+#
+# See notes on this in 
+# blender.stackexchange.com/questions/15102/what-is-blenders-camera-projection-matrix-model
+def get_calibration_matrix_K_from_blender(DsdCam):
+    f_in_mm = DsdCam.lens
+    scene = bpy.context.scene
+    resolution_x_in_px = scene.render.resolution_x
+    resolution_y_in_px = scene.render.resolution_y
+    scale = scene.render.resolution_percentage / 100
+    sensor_width_in_mm = DsdCam.sensor_width
+    sensor_height_in_mm = DsdCam.sensor_height
+    pixel_aspect_ratio = scene.render.pixel_aspect_x / scene.render.pixel_aspect_y
+    if (DsdCam.sensor_fit == 'VERTICAL'):
+        # the sensor height is fixed (sensor fit is horizontal), 
+        # the sensor width is effectively changed with the pixel aspect ratio
+        s_u = resolution_x_in_px * scale / sensor_width_in_mm / pixel_aspect_ratio 
+        s_v = resolution_y_in_px * scale / sensor_height_in_mm
+    else: # 'HORIZONTAL' and 'AUTO'
+        # the sensor width is fixed (sensor fit is horizontal), 
+        # the sensor height is effectively changed with the pixel aspect ratio
+        pixel_aspect_ratio = scene.render.pixel_aspect_x / scene.render.pixel_aspect_y
+        s_u = resolution_x_in_px * scale / sensor_width_in_mm
+        s_v = resolution_y_in_px * scale * pixel_aspect_ratio / sensor_height_in_mm
     
-#     def execute(self, context):
 
-#         BDENTAL_4D_Props = context.scene.BDENTAL_4D_Props
-#         ImagePath = BDENTAL_4D_Props.Back_ImageFile
-#         CalibFile = AbsPath(BDENTAL_4D_Props.DSD_CalibFile)
+    # Parameters of intrinsic calibration matrix K
+    alpha_u = f_in_mm * s_u
+    alpha_v = f_in_mm * s_v
+    u_0 = resolution_x_in_px * scale / 2
+    v_0 = resolution_y_in_px * scale / 2
+    skew = 0 # only use rectangular pixels
 
-#         if not exists(ImagePath):
-#             message = [
-#                 "Please check Image path and retry !",
-#             ]
-#             ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+    K = np.array(
+        ((alpha_u, skew,    u_0),
+        (    0  , alpha_v, v_0),
+        (    0  , 0,        1 )))
+    return K
 
-#             return {"CANCELLED"}
-#         if not exists(CalibFile) :
-#             message = [
-#                 "Please check Camera Calibration file and retry !",
-#             ]
-#             ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+# Returns camera rotation and translation matrices from Blender.
+# 
+# There are 3 coordinate systems involved:
+#    1. The World coordinates: "world"
+#       - right-handed
+#    2. The Blender camera coordinates: "bcam"
+#       - x is horizontal
+#       - y is up
+#       - right-handed: negative z look-at direction
+#    3. The desired computer vision camera coordinates: "cv"
+#       - x is horizontal
+#       - y is down (to align to the actual pixel coordinates 
+#         used in digital images)
+#       - right-handed: positive z look-at direction
+def get_3x4_RT_matrix_from_blender(DsdCam):
+    # bcam stands for blender camera
+    R_bcam2cv = Matrix(
+        ((1, 0,  0),
+         (0, -1, 0),
+         (0, 0, -1)))
 
-#             return {"CANCELLED"}
-#         else:
-#             fx, fy, K, distCoeffs = CamIntrisics(CalibFile)
+    # Transpose since the rotation is object rotation, 
+    # and we want coordinate rotation
+    # R_world2bcam = DsdCam.rotation_euler.to_matrix().transposed()
+    # T_world2bcam = -1*R_world2bcam * location
+    #
+    # Use matrix_world instead to account for all constraints
+    location, rotation = DsdCam.matrix_world.decompose()[0:2]
+    R_world2bcam = rotation.to_matrix().transposed()
 
-#             UndistImagePath = Undistort(ImagePath, K, distCoeffs)
+    # Convert camera location to translation vector used in coordinate changes
+    # T_world2bcam = -1*R_world2bcam*DsdCam.location
+    # Use location from matrix_world to account for constraints:     
+    T_world2bcam = -1*R_world2bcam @ location
 
-#             Image = bpy.data.images.get("DSD_BackImage") or bpy.data.images.load(UndistImagePath, check_existing=False)
-#             Image.name = "DSD_BackImage"
+    # Build the coordinate transform matrix from world to computer vision camera
+    # NOTE: Use * instead of @ here for older versions of Blender
+    # TODO: detect Blender version
+    R_world2cv = R_bcam2cv@R_world2bcam
+    T_world2cv = R_bcam2cv@T_world2bcam
 
-#             #Add Camera :
-#             bpy.ops.object.camera_add(location=(0, 0, 0), rotation=(pi, 0, 0), scale=(1, 1, 1))
-#             Cam_obj = context.object
-#             Cam_obj.name = 'DSD_Camera'
-#             Cam_Coll = MoveToCollection(Cam_obj, 'DSD_CAM')
-#             Cam = Cam_obj.data
-#             Cam.name = 'DSD_Camera'
-#             Cam.type = 'PERSP'
-#             Cam.lens_unit = 'MILLIMETERS'
-#             Cam.display_size = 10
-#             Cam.show_background_images = True
+    # put into 3x4 matrix
+    RT = Matrix((
+        R_world2cv[0][:] + (T_world2cv[0],),
+        R_world2cv[1][:] + (T_world2cv[1],),
+        R_world2cv[2][:] + (T_world2cv[2],)
+         ))
+    return RT
 
-#             # Cam.background_images.new()
-#             # bckg_Image = Cam.background_images[0]
-#             # bckg_Image.image = Image
-#             # bckg_Image.display_depth = 'FRONT'
-#             # bckg_Image.alpha = 0.9
-#             Image.colorspace_settings.name = 'Non-Color'
+def get_3x4_P_matrix_from_blender(DsdCam):
+    K = get_calibration_matrix_K_from_blender(DsdCam.data)
+    RT = get_3x4_RT_matrix_from_blender(DsdCam)
+    return K@RT, K, RT
 
-#             ######################################
-#             W, H = Image.size[:]
-#             cx, cy = W/2, H/2
-#             sensor_width_in_mm,sensor_height_in_mm, f_in_mm = DsdCam_from_CalibMatrix(fx, fy, cx, cy)
-
-#             render = context.scene.render
-#             render.resolution_percentage = 100
-#             render.resolution_x = W
-#             render.resolution_y = H
-
-#             Cam.sensor_fit = 'AUTO'
-
-#             Cam.sensor_width  = sensor_width_in_mm
-#             Cam.sensor_height = sensor_height_in_mm
-#             Cam.lens = f_in_mm
-            
-#             frame = Cam.view_frame()
-#             Cam_frame_World = [Cam_obj.matrix_world @ co for co in frame]
-#             Plane_loc = (Cam_frame_World[0] + Cam_frame_World[2])/2
-#             Plane_Dims = [W/max([W,H]), H/max([W,H]),0]
-
-#             bpy.ops.mesh.primitive_plane_add(location=Plane_loc, rotation=Cam_obj.rotation_euler)
-#             Plane = bpy.context.object
-#             MoveToCollection(Plane, 'DSD_CAM')
-#             Plane.name = f"DSD_Plane_{Image.name}"
-#             Plane.dimensions = Plane_Dims
-#             bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-#             bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='MEDIAN')
-
-
-#             mat = bpy.data.materials.new(f"DSD_Mat_{Image.name}")
-#             mat.use_nodes = True
-#             node_tree = mat.node_tree
-#             nodes = node_tree.nodes
-#             links = node_tree.links
-
-#             for node in nodes:
-#                 if node.type != "OUTPUT_MATERIAL":
-#                     nodes.remove(node)
-
-#             TextureCoord = AddNode(nodes, type="ShaderNodeTexCoord", name="TextureCoord")
-#             ImageTexture = AddNode(nodes, type="ShaderNodeTexImage", name="Image Texture")
-
-#             ImageTexture.image = Image
-
-#             materialOutput = nodes["Material Output"]
-
-#             links.new(TextureCoord.outputs[0], ImageTexture.inputs[0])
-#             links.new(ImageTexture.outputs["Color"], materialOutput.inputs["Surface"])
-#             for slot in Plane.material_slots:
-#                 bpy.ops.object.material_slot_remove()
-
-#             Plane.active_material = mat
-
-#             mat.blend_method = "HASHED"
-#             mat.shadow_method = "HASHED"
-#             context.space_data.shading.type = "SOLID"
-#             context.space_data.shading.color_type = "TEXTURE"
-#             context.space_data.shading.show_specular_highlight = False
+# ----------------------------------------------------------
+# Alternate 3D coordinates to 2D pixel coordinate projection code
+# adapted from https://blender.stackexchange.com/questions/882/how-to-find-image-coordinates-of-the-rendered-vertex?lq=1
+# to have the y axes pointing up and origin at the top-left corner
+def project_by_object_utils(cam, point):
+    scene = bpy.context.scene
+    co_2d = bpy_extras.object_utils.world_to_camera_view(scene, cam, point)
+    render_scale = scene.render.resolution_percentage / 100
+    render_size = (
+            int(scene.render.resolution_x * render_scale),
+            int(scene.render.resolution_y * render_scale),
+            )
+    return Vector((co_2d.x * render_size[0], render_size[1] - co_2d.y * render_size[1]))
 
 
-#             ##############################################################
-#             # Split area :
-#             WM = bpy.context.window_manager
-#             Window = WM.windows[-1]
-#             Screen = Window.screen
+#     p1 = P @ e1
+#     p1 /= p1[2]
+#     print("Projected e1")
+#     print(p1)
+#     print("proj by object_utils")
+#     print(project_by_object_utils(cam, Vector(e1[0:3])))
 
-#             # Area3D = [
-#             #     area for area in Screen.areas if area.type == "VIEW_3D"
-#             # ][0]
-#             # Space3D = [
-#             #     space for space in Area3D.spaces if space.type == "VIEW_3D"
-#             # ][0]
-#             # Region3D = [
-#             #     reg for reg in Area3D.regions if reg.type == "WINDOW"
-#             # ][0]
-
-#             # Area3D.type = (
-#             #     "CONSOLE"  # change area type for update : bug dont respond to spliting
-#             # )
-#             # Override = {
-#             #                 "window": Window,
-#             #                 "screen": Screen,
-#             #                 "area": Area3D,
-#             #                 "space_data": Space3D,
-#             #                 "region": Region3D,
-#             #             }
-#             bpy.ops.screen.area_split(direction="VERTICAL", factor=1 / 2)
-#             Areas3D = [
-#                 area for area in Screen.areas if area.type == "VIEW_3D"
-#             ]
-#             for area in Areas3D :
-#                 area.type = 'CONSOLE'
-#                 area.type = "VIEW_3D"
-
-#                 if area.x == 0 :
-#                     print('Area left found')
-#                     Left_A3D =area
-#                     Left_S3D = [
-#                                     space for space in Left_A3D.spaces if space.type == "VIEW_3D"
-#                                 ][0]
-#                     Left_R3D = [
-#                                     reg for reg in Left_A3D.regions if reg.type == "WINDOW"
-#                                 ][0]
-#                     Left_override = {'area':Left_A3D, 'space_data':Left_S3D, "region": Left_R3D}
-#                     Left_S3D.show_region_ui = False
-#                     Left_S3D.use_local_collections = True
-                    
-#                 else :
-#                     print('Area right found')
-
-#                     Right_A3D =area
-#                     Right_S3D = [
-#                                     space for space in Right_A3D.spaces if space.type == "VIEW_3D"
-#                                 ][0]
-#                     Right_R3D = [
-#                                     reg for reg in Right_A3D.regions if reg.type == "WINDOW"
-#                                 ][0]
-
-#                     Right_override = {'area':Right_A3D, 'space_data':Right_S3D, "region": Right_R3D}
-#                     Right_S3D.show_region_ui = False
-#                     Right_S3D.use_local_collections = True
-                    
-
-            
-            
-
-#             bpy.ops.view3d.view_camera(Right_override)
-#             bpy.ops.view3d.view_center_camera(Right_override)
-#             for _ in range(3):
-#                 bpy.ops.view3d.zoom(Right_override, delta=1)
-#             index = len(bpy.data.collections)
-#             bpy.ops.object.hide_collection(Right_override, collection_index=index)
-#             for i in range(index) :
-#                 bpy.ops.object.hide_collection(Left_override, collection_index=i)
-            
-
-
-#             ##############################################################
-#             # ImgPoints2D = np.array(
-#             #     [
-#             #         (1467, 1029),
-#             #         (1595, 851),
-#             #         (1869, 1072),
-#             #         (2120, 1021),
-#             #         (2168, 837),
-#             #         (2357, 979),
-#             #                         ],
-#             #     dtype=np.float32,
-#             # )
-#             # # ImgPoints2D = np.array(
-#             # #     [
-#             # #         (1509, 1089),
-#             # #         (1644, 901),
-#             # #         (1930, 1132),
-#             # #         (2191, 1081),
-#             # #         (2241, 887),
-#             # #         (2439, 1035),   
-#             # #     ],
-#             # #     dtype=np.float32,
-#             # # )
-
-#             # ObjPoints3D = np.array(
-#             # [[-17.91839599609375, 8.84132194519043, 0.9204647541046143],
-#             # [-11.91409683227539, 4.037921905517578, 8.831137657165527],
-#             # [-0.9221503734588623, -0.23697662353515625, 0.11914398521184921],
-#             # [9.502033233642578, 1.8283214569091797, 1.9180859327316284],
-#             # [12.186532974243164, 3.4850215911865234, 9.207136154174805],
-#             # [22.64107894897461, 14.200422286987305, 2.2281322479248047]],
-#             #     dtype=np.float32,
-#             # )
-
-#             # # ObjPoints3D = np.array(
-#             # #     [
-#             # #         (-15.6916, -24.2017, 20.4906),
-#             # #         (-9.82975, -29.0051, 28.5074),
-#             # #         (1.31626, -33.28, 19.9934),
-#             # #         (11.7066, -31.2147, 21.9785),
-#             # #         (14.2603, -29.558, 29.3144), 
-#             # #         (24.838, -18.8426, 22.5235),
-#             # #     ],
-#             # #     dtype=np.float32,
-#             # # )
-            
-#             # Cam_Matrix = DsdCam_Orientation(ObjPoints3D, ImgPoints2D,  K, cx, cy)
-
-#             # Cam_obj.matrix_world = Cam_Matrix
-
-#         return {"FINISHED"}
 
 def CamIntrisics(CalibFile):
     with open(CalibFile, "rb") as rf:
@@ -6614,12 +6482,16 @@ def CamIntrisics(CalibFile):
 def Undistort(DistImage, K, distCoeffs) :
     img = cv2.imread(DistImage)
     h,  w = img.shape[:2]
+    if w<h:
+        fx,fy,cx,cy = K[0,0],K[1,1],K[0,2], K[1,2]
+        K=np.array([[fy,0,cy],[0,fx,cx],[0,0,1]],dtype=np.float32)
+
     newcameramtx, roi = cv2.getOptimalNewCameraMatrix(K, distCoeffs, (w,h), 1, (w,h))
     # undistort
     UndistImage = cv2.undistort(img, K, distCoeffs, None, newcameramtx)
     # crop the image
-    x, y, w, h = roi
-    UndistImage = UndistImage[y:y+h, x:x+w]
+    # x, y, w, h = roi
+    # UndistImage = UndistImage[y:y+h, x:x+w]
     Split = split(DistImage)
     UndistImagePath = join(Split[0],f"Undistorted_{Split[1]}")
     cv2.imwrite(UndistImagePath, UndistImage)
@@ -6627,20 +6499,35 @@ def Undistort(DistImage, K, distCoeffs) :
     return UndistImagePath
     
 def DsdCam_from_CalibMatrix(fx, fy, cx, cy):
-    sensor_width_in_mm = fy*cx / (fx*cy)
-    sensor_height_in_mm = 1  # doesn't matter
-    s_u = cx*2 / sensor_width_in_mm
-    f_in_mm = fx / s_u
+    if cx>cy :
+        print('Horizontal mode')
+        sensor_width_in_mm = fy*cx / (fx*cy)
+        sensor_height_in_mm = 1  # doesn't matter
+        s_u = cx*2 / sensor_width_in_mm
+        f_in_mm = fx / s_u
+    if cx<cy :
+        print('Vertical mode')
+        sensor_width_in_mm = fy*cy / (fx*cx)
+        sensor_height_in_mm = 1  # doesn't matter
+        s_u = cy*2 / sensor_width_in_mm
+        f_in_mm = fx / s_u
     
     return sensor_width_in_mm,sensor_height_in_mm, f_in_mm
 
-def Focal_lengh_To_K(fl_mm,w,h):
-    cx,cy=w/2, h/2
-    fx=fy=fl_mm*h
-    K=np.array([[fx,0,cx],[0,fy,cy],[0,0,1]],dtype=np.float32)
-    sensor_width_in_mm = fy*cx / (fx*cy)
-    sensor_height_in_mm = 1
-    return K,sensor_width_in_mm,sensor_height_in_mm
+def Focal_lengh_To_K(f_in_mm,w,h):
+    if w>h:
+        cx,cy=w/2, h/2
+        fx=fy=f_in_mm*h
+        K=np.array([[fx,0,cx],[0,fy,cy],[0,0,1]],dtype=np.float32)
+        sensor_width_in_mm = fy*cx / (fx*cy)
+    if w<h:
+        cx,cy=w/2, h/2
+        fx=fy=f_in_mm*w
+        K=np.array([[fx,0,cx],[0,fy,cy],[0,0,1]],dtype=np.float32)
+        sensor_width_in_mm = fy*cy / (fx*cx)
+    
+    return K,sensor_width_in_mm,1
+
 
 def DsdCam_Orientation(ObjPoints3D, Undistorted_Image_Points2D, K, cx, cy):
 
@@ -6805,10 +6692,9 @@ class BDENTAL_4D_OT_Matching2D3D(bpy.types.Operator):
                 Cam_Matrix = DsdCam_Orientation(arr3D, arr2D,  self.K, self.cx, self.cy)
                 self.Cam_obj.matrix_world = Cam_Matrix
                 self.ImagePlane.matrix_world = Cam_Matrix @ invMtx @ self.ImagePlane.matrix_world
-                self.ImagePlane.hide_viewport = True
+                self.ImagePlane.hide_set(True)
                 bpy.ops.view3d.toggle_xray(self.Right_override)
                 self.Right_S3D.shading.xray_alpha = 0.1
-                
 
 
                 
@@ -6842,14 +6728,6 @@ class BDENTAL_4D_OT_Matching2D3D(bpy.types.Operator):
 
             return {"CANCELLED"}
 
-        if not exists(CalibFile) :
-            message = [
-                "Please check Camera Calibration file and retry !",
-            ]
-            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
-
-            return {"CANCELLED"}
-
         self.Target = context.object
         if not self.Target:
 
@@ -6863,55 +6741,116 @@ class BDENTAL_4D_OT_Matching2D3D(bpy.types.Operator):
             
 
             if context.space_data.type == "VIEW_3D":
-
                 #######################################################
+                if not CalibFile :
                 
-                fx, fy, self.K, distCoeffs = CamIntrisics(CalibFile)
+                    ImgName = os.path.split(ImagePath)[-1] or os.path.split(ImagePath)[-2]
+                    self.Suffix = ImgName.split('.')[0]
 
-                UndistImagePath = Undistort(ImagePath, self.K, distCoeffs)
-                # UndistImagePath = ImagePath
+                    ImageName = f"DSD_Image({self.Suffix})"
+                    self.Dsd_Image = Image = bpy.data.images.get(ImageName) or bpy.data.images.load(ImagePath, check_existing=False)
 
-                ImgName = os.path.split(ImagePath)[-1] or os.path.split(ImagePath)[-2]
-                self.Suffix = ImgName.split('.')[0]
+                    Image.name = ImageName
+                    Image.colorspace_settings.name = 'Non-Color'
 
-                ImageName = f"DSD_Image({self.Suffix})"
-                self.Dsd_Image = Image = bpy.data.images.get(ImageName) or bpy.data.images.load(UndistImagePath, check_existing=False)
+                    #Add Camera :
+                    bpy.ops.object.camera_add(location=(0, 0, 0), rotation=(pi, 0, 0), scale=(1, 1, 1))
+                    self.Cam_obj = context.object
+                    self.Cam_obj.name = f"DSD_Camera({self.Suffix})"
+                    MoveToCollection(self.Cam_obj, 'CAM_DSD')
+                    Cam = self.Cam_obj.data
+                    Cam.name = self.Cam_obj.name
+                    Cam.type = 'PERSP'
+                    Cam.lens_unit = 'MILLIMETERS'
+                    Cam.display_size = 10
+                    Cam.show_background_images = True
 
-                Image.name = ImageName
-                Image.colorspace_settings.name = 'Non-Color'
+                    # Make background Image :
+                    self.Cam_obj.data.background_images.new()
+                    bckg_Image = self.Cam_obj.data.background_images[0]
+                    bckg_Image.image = self.Dsd_Image
+                    bckg_Image.display_depth = 'BACK'
+                    bckg_Image.alpha = 0.9
 
-                #Add Camera :
-                bpy.ops.object.camera_add(location=(0, 0, 0), rotation=(pi, 0, 0), scale=(1, 1, 1))
-                self.Cam_obj = context.object
-                self.Cam_obj.name = f"DSD_Camera({self.Suffix})"
-                MoveToCollection(self.Cam_obj, 'CAM_DSD')
-                Cam = self.Cam_obj.data
-                Cam.name = self.Cam_obj.name
-                Cam.type = 'PERSP'
-                Cam.lens_unit = 'MILLIMETERS'
-                Cam.display_size = 10
-                Cam.show_background_images = True
+                    ######################################
+                    # sensor_width_in_mm = Cam.sensor_width
+                    # sensor_height_in_mm = Cam.sensor_height
+                    # f_in_mm = Cam.lens
+                    W, H = Image.size[:]
+                    render = context.scene.render
+                    render.resolution_percentage = 100
+                    render.resolution_x = W
+                    render.resolution_y = H
 
-                # Make background Image :
-                self.Cam_obj.data.background_images.new()
-                bckg_Image = self.Cam_obj.data.background_images[0]
-                bckg_Image.image = self.Dsd_Image
-                bckg_Image.display_depth = 'BACK'
-                bckg_Image.alpha = 0.9
+                    Cam.sensor_fit = 'AUTO'
+                    f_in_mm = 3.80
+                    # W, H = Image.size[:]
+                    # self.K = get_calibration_matrix_K_from_blender(DsdCam=Cam)
+                    self.K,sensor_width_in_mm,sensor_height_in_mm = Focal_lengh_To_K(f_in_mm,W,H)
+                    self.cx, self.cy = W/2, H/2
 
-                ######################################
-                W, H = Image.size[:]
-                
-                self.cx, self.cy = W/2, H/2
+                # #######################################################
+                if CalibFile :
+                    if not exists(CalibFile) :
+                        message = [
+                            "Please check Camera Calibration file and retry !",
+                        ]
+                        ShowMessageBox(message=message, icon="COLORSET_02_VEC")
 
-                sensor_width_in_mm,sensor_height_in_mm, f_in_mm = DsdCam_from_CalibMatrix(fx, fy, self.cx, self.cy)
+                        return {"CANCELLED"}
+                    
+                    fx, fy, self.K, distCoeffs = CamIntrisics(CalibFile)
 
-                render = context.scene.render
-                render.resolution_percentage = 100
-                render.resolution_x = W
-                render.resolution_y = H
+                    UndistImagePath = Undistort(ImagePath, self.K, distCoeffs)
 
-                Cam.sensor_fit = 'AUTO'
+                    ImgName = os.path.split(ImagePath)[-1] or os.path.split(ImagePath)[-2]
+                    self.Suffix = ImgName.split('.')[0]
+
+                    ImageName = f"DSD_Image({self.Suffix})"
+                    self.Dsd_Image = Image = bpy.data.images.get(ImageName) or bpy.data.images.load(UndistImagePath, check_existing=False)
+                    # self.Dsd_Image = Image = bpy.data.images.get(ImageName) or bpy.data.images.load(ImagePath, check_existing=False)
+
+                    Image.name = ImageName
+                    Image.colorspace_settings.name = 'Non-Color'
+
+                    #Add Camera :
+                    bpy.ops.object.camera_add(location=(0, 0, 0), rotation=(pi, 0, 0), scale=(1, 1, 1))
+                    self.Cam_obj = context.object
+                    self.Cam_obj.name = f"DSD_Camera({self.Suffix})"
+                    MoveToCollection(self.Cam_obj, 'CAM_DSD')
+                    Cam = self.Cam_obj.data
+                    Cam.name = self.Cam_obj.name
+                    Cam.type = 'PERSP'
+                    Cam.lens_unit = 'MILLIMETERS'
+                    Cam.display_size = 10
+                    Cam.show_background_images = True
+
+                    # Make background Image :
+                    self.Cam_obj.data.background_images.new()
+                    bckg_Image = self.Cam_obj.data.background_images[0]
+                    bckg_Image.image = self.Dsd_Image
+                    bckg_Image.display_depth = 'BACK'
+                    bckg_Image.alpha = 0.9
+
+                    ######################################
+                    W, H = Image.size[:]
+                    render = context.scene.render
+                    render.resolution_percentage = 100
+                    render.resolution_x = W
+                    render.resolution_y = H
+
+                    Cam.sensor_fit = 'AUTO'
+
+                    self.cx, self.cy = W/2, H/2
+                    
+                    sensor_width_in_mm,sensor_height_in_mm, f_in_mm = DsdCam_from_CalibMatrix(fx, fy, self.cx, self.cy)
+
+                # render = context.scene.render
+                # render.resolution_percentage = 100
+                # render.resolution_x = W
+                # render.resolution_y = H
+
+                # Cam.sensor_fit = 'AUTO'
 
                 Cam.sensor_width  = sensor_width_in_mm
                 Cam.sensor_height = sensor_height_in_mm
@@ -6921,6 +6860,7 @@ class BDENTAL_4D_OT_Matching2D3D(bpy.types.Operator):
                 Cam_frame_World = [self.Cam_obj.matrix_world @ co for co in frame]
                 Plane_loc = (Cam_frame_World[0] + Cam_frame_World[2])/2
                 Plane_Dims = [W/max([W,H]), H/max([W,H]),0]
+                # Plane_Dims = [1, H/W,0]
 
                 bpy.ops.mesh.primitive_plane_add(location=Plane_loc, rotation=self.Cam_obj.rotation_euler)
                 self.ImagePlane = bpy.context.object
@@ -7014,9 +6954,6 @@ class BDENTAL_4D_OT_Matching2D3D(bpy.types.Operator):
                 for i in range(2,len(bpy.data.collections)+1) :
                     bpy.ops.object.hide_collection(Left_override, collection_index=i,toggle=True)
                 bpy.ops.object.hide_collection(Right_override, collection_index=1,toggle=True)
-                Right_S3D.use_local_camera = True
-                Right_S3D.camera = self.Cam_obj
-
                 #######################################################
                 
                 self.Mtx = self.ImagePlane.matrix_world.inverted()

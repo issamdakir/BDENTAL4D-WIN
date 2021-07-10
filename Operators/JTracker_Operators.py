@@ -68,7 +68,7 @@ class BDENTAL_4D_OT_SetUpJaw(bpy.types.Operator):
                 " DONE!",
             ]
             ShowMessageBox(message=message, icon="COLORSET_03_VEC")
-            bpy.ops.object.origin_set(type="ORIGIN_CENTER_OF_VOLUME", center="MEDIAN")
+            #bpy.ops.object.origin_set(type="ORIGIN_CENTER_OF_VOLUME", center="MEDIAN")
             return {"FINISHED"}
         else:
             message = [
@@ -99,10 +99,10 @@ class BDENTAL_4D_OT_SetLowJaw(bpy.types.Operator):
                 " DONE!",
             ]
             ShowMessageBox(message=message, icon="COLORSET_03_VEC")
-            bpy.ops.object.origin_set(type="ORIGIN_CENTER_OF_VOLUME", center="MEDIAN")
-            bpy.ops.object.constraint_add(type="CHILD_OF")
-            bpy.context.object.constraints["Child Of"].target = UpJaw
-            bpy.context.object.constraints["Child Of"].name = "UpJaw_Child"
+            #bpy.ops.object.origin_set(type="ORIGIN_CENTER_OF_VOLUME", center="MEDIAN")
+            #bpy.ops.object.constraint_add(type="CHILD_OF")
+            #bpy.context.object.constraints["Child Of"].target = UpJaw
+            #bpy.context.object.constraints["Child Of"].name = "UpJaw_Child"
 
             return {"FINISHED"}
         else:
@@ -388,7 +388,7 @@ class BDENTAL_4D_OT_StarTrack(bpy.types.Operator):
         BDENTAL_4D_Props = bpy.context.scene.BDENTAL_4D_Props
         ProjDir = AbsPath(BDENTAL_4D_Props.JTrack_UserProjectDir)
         CalibFile = join(ProjDir, "calibration.pckl")
-        DataFile = join(ProjDir, "_DataFile.txt")
+        DataFile = join(ProjDir, str(BDENTAL_4D_Props.TrackFile)+"_DataFile.txt")
         TrackFile = AbsPath(BDENTAL_4D_Props.TrackFile)
         #############################################################################################
         # create file and erase :
@@ -1072,7 +1072,7 @@ class BDENTAL_4D_OT_DrawMovements(bpy.types.Operator):
             ShowMessageBox(message=message, icon="COLORSET_01_VEC")
             return {"CANCELLED"}
 
-        PointCouplesList = GetPeakPointCouples(IP, RCP, LCP, Dist=50)
+        PointCouplesList = GetPeakPointCouples(IP, RCP, LCP, DIST=50)
 
         for Couple in PointCouplesList:
             P0_info = Couple[0]
