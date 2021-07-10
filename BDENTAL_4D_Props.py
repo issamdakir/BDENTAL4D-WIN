@@ -193,8 +193,8 @@ class BDENTAL_4D_Props(bpy.types.PropertyGroup):
         precision=1,
     )
     SoftTreshold: IntProperty(
-        name="SOFT TISSU",
-        description="Soft Tissu Treshold",
+        name="SOFT TISSUE",
+        description="Soft Tissue Treshold",
         default=-300,
         min=-400,
         max=3000,
