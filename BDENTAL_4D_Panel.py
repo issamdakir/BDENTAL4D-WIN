@@ -138,7 +138,7 @@ class BDENTAL_4D_PT_ScanPanel(bpy.types.Panel):
 
                 Box = layout.box()
                 row = Box.row()
-                row.prop(BDENTAL_4D_Props, "SoftTreshold", text="Soft Tissu")
+                row.prop(BDENTAL_4D_Props, "SoftTreshold", text="Soft Tissue")
                 row.prop(BDENTAL_4D_Props, "SoftSegmentColor", text="")
                 row.prop(BDENTAL_4D_Props, "SoftBool", text="")
                 row = Box.row()
