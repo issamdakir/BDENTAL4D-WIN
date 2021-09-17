@@ -1,5 +1,5 @@
 import os, stat, sys, shutil, math, threading,pickle
-from math import degrees, radians, pi, ceil, floor
+from math import degrees, radians, pi, ceil, floor, sqrt
 import numpy as np
 from time import sleep, perf_counter as Tcounter
 from queue import Queue
@@ -56,7 +56,6 @@ class BDENTAL_4D_OT_OpenManual(bpy.types.Operator):
 
         Manual_Path = join(addon_dir, "Resources", "BDENTAL4D User Manual.pdf")
         os.startfile(Manual_Path)
-
         return {"FINISHED"}
 
 
@@ -2404,6 +2403,52 @@ class BDENTAL_4D_OT_AddImplant(bpy.types.Operator):
             self.Pointer = context.active_object
 
             self.ImplantLibrary = BDENTAL_4D_Props.ImplantLibrary
+            wm = context.window_manager
+            return wm.invoke_props_dialog(self)
+
+class BDENTAL_4D_OT_AlignImplants(bpy.types.Operator):
+    """ Align Implants """
+
+    bl_idname = "bdental4d.align_implants"
+    bl_label = "ALIGN IMPLANTS AXES"
+
+    AlignModes = ["To Active", "Averrage Axes"]
+    items = []
+    for i in range(len(AlignModes)):
+        item = (str(AlignModes[i]), str(AlignModes[i]), str(""), int(i))
+        items.append(item)
+
+    AlignMode: EnumProperty(items=items, description="Implant Align Mode", default="To Active")
+
+
+    def execute(self, context):
+        if self.AlignMode == "Averrage Axes" :
+            MeanRot = np.mean([ np.array(Impt.rotation_euler) for Impt in self.Implants], axis=0)
+            for Impt in self.Implants :
+                Impt.rotation_euler = MeanRot
+            
+        elif self.AlignMode == "To Active" :
+            for Impt in self.Implants :
+                Impt.rotation_euler = self.Active_Imp.rotation_euler
+        return {"FINISHED"}
+
+    def invoke(self, context, event):
+        
+        if not context.active_object:
+            message = ["Please select 2 implants at least"]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+            return {"CANCELLED"}
+
+        if not context.active_object.select_get() or not len(context.selected_objects) >=2 :
+            message = message = ["Please select 2 implants at least"]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+
+            return {"CANCELLED"}
+
+        else:
+            self.Active_Imp = context.active_object
+            self.Implants = context.selected_objects
+            
             wm = context.window_manager
             return wm.invoke_props_dialog(self)
 
@@ -5377,6 +5422,7 @@ class BDENTAL_4D_OT_CurveCutterAdd2(bpy.types.Operator):
         elif event.type == "RET":
 
             if event.value == ("PRESS"):
+                
                 CuttingTargetName = BDENTAL_4D_Props.CuttingTargetNameProp
                 CuttingTarget = bpy.data.objects[CuttingTargetName]
 
@@ -5400,13 +5446,23 @@ class BDENTAL_4D_OT_CurveCutterAdd2(bpy.types.Operator):
                 bpy.context.space_data.overlay.show_outline_selected = True
 
                 bezier_points = CurveCutter.data.splines[0].bezier_points[:]
+                Hooks = [obj for obj in bpy.data.objects if 'Hook' in obj.name]
                 for i in range(len(bezier_points)):
-                    AddCurveSphere(
+                    Hook = AddCurveSphere(
                         Name=f"Hook_{i}",
                         Curve=CurveCutter,
                         i=i,
                         CollName="BDENTAL-4D Cutters",
                     )
+                    Hooks.append(Hook)
+                print(Hooks)
+                for h in Hooks :
+                    for o in Hooks :
+                        if not o is h :
+                            delta = o.location - h.location
+                            distance = sqrt(delta[0]**2+delta[1]**2+delta[2]**2)
+                            if distance<=0.5 :
+                                o.location = h.location 
                 bpy.context.space_data.overlay.show_relationship_lines = False
                 bpy.context.scene.tool_settings.use_snap = True
                 bpy.context.scene.tool_settings.snap_elements = {'FACE'}
@@ -5422,21 +5478,10 @@ class BDENTAL_4D_OT_CurveCutterAdd2(bpy.types.Operator):
 
             if event.value == ("PRESS"):
 
-                CurveCutterName = bpy.context.scene.BDENTAL_4D_Props.CurveCutterNameProp
-                CurveCutter = bpy.data.objects[CurveCutterName]
-                bpy.ops.object.mode_set(mode="OBJECT")
-
+                bpy.data.objects.remove(self.CurveCutter)
                 bpy.ops.object.select_all(action="DESELECT")
-                CurveCutter.select_set(True)
-                bpy.context.view_layer.objects.active = CurveCutter
-                bpy.ops.object.delete(use_global=False, confirm=False)
-
-                CuttingTargetName = context.scene.BDENTAL_4D_Props.CuttingTargetNameProp
-                CuttingTarget = bpy.data.objects[CuttingTargetName]
-
-                bpy.ops.object.select_all(action="DESELECT")
-                CuttingTarget.select_set(True)
-                bpy.context.view_layer.objects.active = CuttingTarget
+                self.CuttingTarget.select_set(True)
+                bpy.context.view_layer.objects.active = self.CuttingTarget
 
                 bpy.ops.wm.tool_set_by_id(name="builtin.select")
                 bpy.context.scene.tool_settings.use_snap = False
@@ -5461,13 +5506,13 @@ class BDENTAL_4D_OT_CurveCutterAdd2(bpy.types.Operator):
             if context.space_data.type == "VIEW_3D":
 
                 # Assign Model name to CuttingTarget property :
-                CuttingTarget = bpy.context.view_layer.objects.active
+                self.CuttingTarget = CuttingTarget = bpy.context.view_layer.objects.active
                 bpy.context.scene.BDENTAL_4D_Props.CuttingTargetNameProp = (
                     CuttingTarget.name
                 )
 
                 bpy.ops.object.mode_set(mode="OBJECT")
-                bpy.ops.object.hide_view_clear()
+                # bpy.ops.object.hide_view_clear()
                 bpy.ops.object.select_all(action="DESELECT")
 
                 # for obj in bpy.data.objects:
@@ -5487,7 +5532,7 @@ class BDENTAL_4D_OT_CurveCutterAdd2(bpy.types.Operator):
                         [obj.hide_set(False) for obj in Cutters_Objects]
                 
 
-                CuttingCurveAdd2()
+                self.CurveCutter = CuttingCurveAdd2()
 
                 context.window_manager.modal_handler_add(self)
 
@@ -5587,6 +5632,39 @@ class BDENTAL_4D_OT_CurveCutter2_ShortPath(bpy.types.Operator):
             me.vertices[Id].select = True
 
         print("Cut Line selected...")
+
+        # bpy.ops.object.mode_set(mode="EDIT")
+        # bpy.ops.mesh.loop_to_region()
+        # bpy.ops.mesh.select_more()
+        # bpy.ops.mesh.subdivide(number_cuts=2)
+        # bpy.ops.mesh.select_all(action='DESELECT')
+
+        # dg = context.evaluated_depsgraph_get()
+        # me = me.evaluated_get(dg)
+        # # initiate a KDTree :
+        # size = len(me.vertices)
+        # kd = kdtree.KDTree(size)
+
+        # for v_id, v in enumerate(me.vertices):
+        #     kd.insert(v.co, v_id)
+
+        # kd.balance()
+        # Loop = []
+        # for CurveCutter in CurveMeshesList:
+            
+        #     CutterCoList = [CuttingTarget.matrix_world.inverted() @ CurveCutter.matrix_world @ v.co for v in CurveCutter.data.vertices]
+        #     Closest_VIDs = [ kd.find(CutterCoList[i])[1] for i in range(len(CutterCoList))]
+        #     print('Get closest verts list done')
+        #     if BDENTAL_4D_Props.CurveCutCloseMode == 'Close Curve' :
+        #         CloseState = True
+        #     else :
+        #         CloseState = False
+        #     CutLine = ShortestPath(CuttingTarget, Closest_VIDs, close=CloseState)
+        #     Loop.extend(CutLine)
+
+        # bpy.ops.object.mode_set(mode="OBJECT")
+        # for Id in Loop :
+        #     me.vertices[Id].select = True
 
         bpy.ops.object.mode_set(mode="EDIT")
         vg = CuttingTarget.vertex_groups.new(name="intersect_vgroup")
@@ -6996,6 +7074,7 @@ classes = [
     BDENTAL_4D_OT_AddTeeth,
     BDENTAL_4D_OT_AddSleeve,
     BDENTAL_4D_OT_AddImplant,
+    BDENTAL_4D_OT_AlignImplants,
     BDENTAL_4D_OT_AddImplantSleeve,
     BDENTAL_4D_OT_AddSplint,
     BDENTAL_4D_OT_Survey,

@@ -79,6 +79,26 @@ def ShowMessageBox(message=[], title="INFO", icon="INFO"):
 #######################################################################################
 # Load CT Scan functions :
 #######################################################################################
+def Align_Implants(Averrage=False):
+    ctx = bpy.context
+    Implants = ctx.selected_objects
+    n = len(Implants)
+    Active_Imp = ctx.active_object
+    if n <2 or not Active_Imp :
+        print('Please select at least 2 implants \nThe last selected is the active')
+        return
+    else:
+        if Averrage :
+            MeanRot = np.mean([ np.array(Impt.rotation_euler) for Impt in Implants], axis=0)
+            for Impt in Implants :
+                Impt.rotation_euler = MeanRot
+            
+        else :
+            
+            for Impt in Implants :
+                Impt.rotation_euler = Active_Imp.rotation_euler
+
+                
 def CheckString(String, MatchesList,mode=all):
     if mode(x in String for x in MatchesList ):
         return True
@@ -2016,6 +2036,8 @@ def AddCurveSphere(Name, Curve, i, CollName):
     Curve.select_set(True)
     bpy.context.view_layer.objects.active = Curve
 
+    return Hook
+
 
 def CuttingCurveAdd():
 
@@ -2240,6 +2262,8 @@ def CuttingCurveAdd2():
     bpy.context.object.modifiers["Shrinkwrap"].use_apply_on_spline = True
 
     MoveToCollection(CurveCutter, "BDENTAL-4D Cutters")
+
+    return CurveCutter
 
 
 #######################################################################################

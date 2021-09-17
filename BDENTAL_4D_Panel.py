@@ -354,6 +354,7 @@ class BDENTAL_4D_PT_Guide(bpy.types.Panel):
         row = Box.row()
         row.alignment = "CENTER"
         row.operator("bdental4d.add_implant")
+        row.operator("bdental4d.align_implants")
 
         Box = layout.box()
         row = Box.row()
