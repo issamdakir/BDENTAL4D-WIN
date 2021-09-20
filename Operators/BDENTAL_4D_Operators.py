@@ -39,7 +39,7 @@ Addon_Enable(AddonName="mesh_looptools", Enable=True)
 addon_dir = dirname(dirname(abspath(__file__)))
 DataBlendFile = join(addon_dir, "Resources", "BlendData", "BDENTAL_4D_BlendData.blend")
 
-GpShader = "VGS_Marcos_modified"  # "VGS_Marcos_01" "VGS_Dakir_01"
+GpShader = "VGS_Marcos_modified_MinMax"#"VGS_Marcos_modified"  # "VGS_Marcos_01" "VGS_Dakir_01"
 Wmin = -400
 Wmax = 3000
 ProgEvent = vtkCommand.ProgressEvent
@@ -54,7 +54,7 @@ class BDENTAL_4D_OT_OpenManual(bpy.types.Operator):
 
     def execute(self, context):
 
-        Manual_Path = join(addon_dir, "Resources", "BDENTAL4D User Manual.pdf")
+        Manual_Path = join(addon_dir, "Resources", "BDENTAL_4D User Manual.pdf")
         os.startfile(Manual_Path)
         return {"FINISHED"}
 
@@ -161,285 +161,384 @@ def GetMaxSerie(UserDcmDir):
     return MaxSerie, MaxCount
 
 
+class BDENTAL_4D_OT_Organize(bpy.types.Operator):
+    """ Volume Render """
+
+    bl_idname = "bdental4d.organize"
+    bl_label = "ORGANIZE DICOM"
+
+    def execute(self, context):
+        BDENTAL_4D_Props = context.scene.BDENTAL_4D_Props
+        UserProjectDir = AbsPath(BDENTAL_4D_Props.UserProjectDir)
+        UserDcmDir = AbsPath(BDENTAL_4D_Props.UserDcmDir)
+
+        DcmOrganizeDict = eval(BDENTAL_4D_Props.DcmOrganize)
+
+        if UserDcmDir in DcmOrganizeDict.keys() :
+            OrganizeReport = DcmOrganizeDict[UserDcmDir]
+
+        else :
+            if not exists(UserProjectDir):
+                message = [" The Selected Project Directory is not valid ! "]
+                ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+                return {"CANCELLED"}
+
+            if not exists(UserDcmDir):
+                message = [" The Selected Dicom Directory is not valid ! "]
+                ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+                return {"CANCELLED"}
+
+            if not os.listdir(UserDcmDir):
+                message = ["No DICOM files found in DICOM Folder ! "]
+                ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+                return {"CANCELLED"}
+
+            Series_reader = sitk.ImageSeriesReader()
+            Series_IDs = Series_reader.GetGDCMSeriesIDs(UserDcmDir)
+            
+            
+            if not Series_IDs:
+                message = ["No valid DICOM Serie found in DICOM Folder ! "]
+                print(message)
+                ShowMessageBox(message=message, icon="COLORSET_01_VEC")
+                return {"CANCELLED"}
+
+            series_IDs_Files = [[S_ID,Series_reader.GetGDCMSeriesFileNames(UserDcmDir, S_ID)] for S_ID in Series_IDs]
+
+            tags = dict(
+                    {
+                        "Patient Name": "0010|0010",
+                        "Series Date": "0008|0021",
+                        "Series Description": "0008|103E",
+                        
+            
+                    }
+                )
+            DcmOrganizeDict[UserDcmDir]= {}
+            for [S_ID,FilesList] in series_IDs_Files:
+                count = len(FilesList)
+                DcmOrganizeDict[UserDcmDir][S_ID]={'Count':count}#,'Files':FilesList}
+
+                file0 = FilesList[0]
+                reader = sitk.ImageFileReader()
+                reader.SetFileName(file0)
+                reader.LoadPrivateTagsOn()
+                reader.ReadImageInformation()
+
+                Image = reader.Execute()
+
+                for attribute, tag in tags.items():
+
+                    if tag in Image.GetMetaDataKeys():
+                        v = Image.GetMetaData(tag)
+
+                    else:
+                        v = "-------"
+
+                    DcmOrganizeDict[UserDcmDir][S_ID][attribute] = v
+
+                DcmOrganizeDict[UserDcmDir][S_ID]['Files'] = FilesList
+
+
+            SortedList = sorted(DcmOrganizeDict[UserDcmDir].items(), key=lambda x: x[1]['Count'], reverse=True)
+            # Sorted = list(sorted(DcmOrganizeDict[UserDcmDir], reverse=True))
+
+            SortedOrganizeDict = {}
+            for i,(k,v) in enumerate(SortedList) :
+                SortedOrganizeDict[f"Series{i} ({v['Count']})"] = DcmOrganizeDict[UserDcmDir][k]
+            # for k,v in SortedOrganizeDict.items():
+            #     print(k,' : ',v['Count'])
+            DcmOrganizeDict[UserDcmDir] = SortedOrganizeDict
+            BDENTAL_4D_Props.DcmOrganize = str(DcmOrganizeDict)
+            OrganizeReport = SortedOrganizeDict
+
+        Message = {}
+        for serie, info in OrganizeReport.items() :
+            Count, Name, Date, Descript = info['Count'], info['Patient Name'], info['Series Date'], info['Series Description']
+            Message[serie]={'Count': Count,
+                            'Patient Name': Name,
+                            'Series Date': Date,
+                            'Series Description': Descript}
+        
+        BDENTAL_4D_Props.OrganizeInfoProp = str(Message)
+
+        Split = split(UserProjectDir )
+        ProjectName = Split[-1] or Split[-2]
+        BlendFile = f"{ProjectName}_CT-SCAN.blend"
+        Blendpath = join(UserProjectDir , BlendFile)
+
+        bpy.ops.wm.save_as_mainfile(filepath=Blendpath)
+        BDENTAL_4D_Props.UserProjectDir = RelPath(UserProjectDir)
+        bpy.ops.wm.save_mainfile()
+
+        # file1 = join(UserDcmDir, os.listdir(UserDcmDir)[1])
+        # reader = sitk.ImageFileReader()
+        # reader.SetFileName(file1)
+        # reader.LoadPrivateTagsOn()
+        # reader.ReadImageInformation()
+        # Image = reader.Execute()
+
+        # ConvKernel = None
+        # if "0018|1210" in Image.GetMetaDataKeys():
+        #     ConvKernel = Image.GetMetaData("0018|1210")
+        #     if not ConvKernel:
+        #         ConvKernel = None
+        # Manufacturer = None
+        # if "0008|0070" in Image.GetMetaDataKeys():
+        #     Manufacturer = Image.GetMetaData("0008|0070")
+        #     if not Manufacturer:
+        #         Manufacturer = None
+        
+        # Soft,Bone,Teeth = GetAutoReconstructParameters(Manufacturer, ConvKernel)
+
+        # print(Soft,Bone,Teeth)
+        
+        return {'FINISHED'}
+
 def Load_Dicom_funtion(context, q):
+
+    message = []
 
     ################################################################################################
     start = Tcounter()
     ################################################################################################
     BDENTAL_4D_Props = context.scene.BDENTAL_4D_Props
     UserProjectDir = AbsPath(BDENTAL_4D_Props.UserProjectDir)
+
+    Serie = BDENTAL_4D_Props.Dicom_Series
+    # Start Reading Dicom data :
+    ######################################################################################
     UserDcmDir = AbsPath(BDENTAL_4D_Props.UserDcmDir)
-
-    ################################################################################################
-
-    if not exists(UserProjectDir):
-
-        message = ["The Selected Project Directory Path is not valid ! "]
-        ShowMessageBox(message=message, icon="COLORSET_02_VEC")
-        return {"CANCELLED"}
-
-    elif not exists(UserDcmDir):
-
-        message = [" The Selected Dicom Directory Path is not valid ! "]
-        ShowMessageBox(message=message, icon="COLORSET_02_VEC")
-        return {"CANCELLED"}
-
-    elif not os.listdir(UserDcmDir):
-        message = ["No valid DICOM Serie found in DICOM Folder ! "]
-        ShowMessageBox(message=message, icon="COLORSET_02_VEC")
-        return {"CANCELLED"}
-
-    else:
-        # Get Preffix and save file :
-        DcmInfoDict = eval(BDENTAL_4D_Props.DcmInfo)
-        Preffixs = list(DcmInfoDict.keys())
-
-        for i in range(1, 100):
-            Preffix = f"BD4D{i:03}"
-            if not Preffix in Preffixs:
-                break
-
-        Split = split(UserProjectDir)
-        ProjectName = Split[-1] or split(Split[0])[-1]
-        BlendFile = f"{ProjectName}_CT-SCAN.blend"
-        Blendpath = join(UserProjectDir, BlendFile)
-
-        bpy.ops.wm.save_as_mainfile(filepath=Blendpath)
+    DcmOrganizeDict = eval(BDENTAL_4D_Props.DcmOrganize)
+    DcmSerie = DcmOrganizeDict[UserDcmDir][Serie]['Files']
+    Image3D = sitk.ReadImage(DcmSerie)  
         
-        # Start Reading Dicom data :
-        ######################################################################################
-        Series_reader = sitk.ImageSeriesReader()
-        MaxSerie, MaxCount = GetMaxSerie(UserDcmDir)
-        DcmSerie = Series_reader.GetGDCMSeriesFileNames(UserDcmDir, MaxSerie)
+    # Get Preffix and save file :
+    DcmInfoDict = eval(BDENTAL_4D_Props.DcmInfo)
+    Preffixs = list(DcmInfoDict.keys())
 
-        ##################################### debug_02 ###################################
-        debug_01 = Tcounter()
-        message = f"MaxSerie ID : {MaxSerie}, MaxSerie Count : {MaxCount} (Time : {round(debug_01-start,2)} secondes)"
-        print(message)
-        # q.put("Max DcmSerie extracted...")
-        ####################################################################################
+    for i in range(1, 100):
+        Preffix = f"BD4D_{i:03}"
+        if not Preffix in Preffixs:
+            break
 
-        # Get StudyInfo :
-        reader = sitk.ImageFileReader()
-        reader.SetFileName(DcmSerie[0])
-        reader.LoadPrivateTagsOn()
-        reader.ReadImageInformation()
+    # Get Dicom Info :
+    Sp = Spacing = Image3D.GetSpacing()
+    Sz = Size = Image3D.GetSize()
+    Dims = Dimensions = Image3D.GetDimension()
+    Origin = Image3D.GetOrigin()
+    Direction = Image3D.GetDirection()
 
-        Image3D = sitk.ReadImage(DcmSerie)
-
-        # Get Dicom Info :
-        Sp = Spacing = Image3D.GetSpacing()
-        Sz = Size = Image3D.GetSize()
-        Dims = Dimensions = Image3D.GetDimension()
-        Origin = Image3D.GetOrigin()
-        Direction = Image3D.GetDirection()
-
-        # calculate Informations :
-        D = Direction
-        O = Origin
-        DirectionMatrix_4x4 = Matrix(
-            (
-                (D[0], D[1], D[2], 0.0),
-                (D[3], D[4], D[5], 0.0),
-                (D[6], D[7], D[8], 0.0),
-                (0.0, 0.0, 0.0, 1.0),
-            )
+    # calculate Informations :
+    D = Direction
+    O = Origin
+    DirectionMatrix_4x4 = Matrix(
+        (
+            (D[0], D[1], D[2], 0.0),
+            (D[3], D[4], D[5], 0.0),
+            (D[6], D[7], D[8], 0.0),
+            (0.0, 0.0, 0.0, 1.0),
         )
+    )
 
-        TransMatrix_4x4 = Matrix(
-            (
-                (1.0, 0.0, 0.0, O[0]),
-                (0.0, 1.0, 0.0, O[1]),
-                (0.0, 0.0, 1.0, O[2]),
-                (0.0, 0.0, 0.0, 1.0),
-            )
+    TransMatrix_4x4 = Matrix(
+        (
+            (1.0, 0.0, 0.0, O[0]),
+            (0.0, 1.0, 0.0, O[1]),
+            (0.0, 0.0, 1.0, O[2]),
+            (0.0, 0.0, 0.0, 1.0),
         )
+    )
 
-        VtkTransform_4x4 = TransMatrix_4x4 @ DirectionMatrix_4x4
-        P0 = Image3D.TransformContinuousIndexToPhysicalPoint((0, 0, 0))
-        P_diagonal = Image3D.TransformContinuousIndexToPhysicalPoint(
-            (Sz[0] - 1, Sz[1] - 1, Sz[2] - 1)
+    VtkTransform_4x4 = TransMatrix_4x4 @ DirectionMatrix_4x4
+    P0 = Image3D.TransformContinuousIndexToPhysicalPoint((0, 0, 0))
+    P_diagonal = Image3D.TransformContinuousIndexToPhysicalPoint(
+        (Sz[0] - 1, Sz[1] - 1, Sz[2] - 1)
+    )
+    VCenter = (Vector(P0) + Vector(P_diagonal)) * 0.5
+
+    C = VCenter
+
+    TransformMatrix = Matrix(
+        (
+            (D[0], D[1], D[2], C[0]),
+            (D[3], D[4], D[5], C[1]),
+            (D[6], D[7], D[8], C[2]),
+            (0.0, 0.0, 0.0, 1.0),
         )
-        VCenter = (Vector(P0) + Vector(P_diagonal)) * 0.5
+    )
 
-        C = VCenter
+    # Set DcmInfo :
 
-        TransformMatrix = Matrix(
-            (
-                (D[0], D[1], D[2], C[0]),
-                (D[3], D[4], D[5], C[1]),
-                (D[6], D[7], D[8], C[2]),
-                (0.0, 0.0, 0.0, 1.0),
-            )
+    DcmInfo = dict(
+        {
+            "SlicesDir" : "",
+            "Nrrd255Path":"",
+            "Preffix": Preffix,
+            "RenderSz": Sz,
+            "RenderSp": Sp,
+            "PixelType": Image3D.GetPixelIDTypeAsString(),
+            "Wmin": Wmin,
+            "Wmax": Wmax,
+            "Dims": Dims,
+            "Size": Sz,
+            "Spacing": Sp,
+            "Origin": Origin,
+            "Direction": Direction,
+            "TransformMatrix": TransformMatrix,
+            "DirectionMatrix_4x4": DirectionMatrix_4x4,
+            "TransMatrix_4x4": TransMatrix_4x4,
+            "VtkTransform_4x4": VtkTransform_4x4,
+            "VolumeCenter": VCenter,
+            'AutoReconParameters' : '[None,None,None]'
+        }
+    )
+    # Get Automatic Reconstruction Parameters :
+    reader = sitk.ImageFileReader()
+    reader.SetFileName(DcmSerie[0])
+    reader.LoadPrivateTagsOn()
+    reader.ReadImageInformation()
+    ImageReader = reader.Execute()
+
+    ConvKernel = None
+    if "0018|1210" in ImageReader.GetMetaDataKeys():
+        ConvKernel = ImageReader.GetMetaData("0018|1210")
+        if not ConvKernel:
+            ConvKernel = None
+    Manufacturer = None
+    if "0008|0070" in ImageReader.GetMetaDataKeys():
+        Manufacturer = ImageReader.GetMetaData("0008|0070")
+        if not Manufacturer:
+            Manufacturer = None
+    
+    Soft,Bone,Teeth = GetAutoReconstructParameters(Manufacturer, ConvKernel)
+    DcmInfo['AutoReconParameters']=str([Soft,Bone,Teeth])
+    print(DcmInfo['AutoReconParameters'])
+    #######################################################################################
+    # Add directories :
+    PngDir = join(UserProjectDir ,"PNG")
+    AxialPngDir = join(PngDir, "Axial")
+    CoronalPngDir = join(PngDir, "Coronal")
+    SagitalPngDir = join(PngDir, "Sagital")
+
+    os.makedirs(AxialPngDir)
+    os.makedirs(CoronalPngDir)
+    os.makedirs(SagitalPngDir)
+
+
+
+    Nrrd255Path = join(UserProjectDir , f"{Preffix}_Image3D255.nrrd")
+    DcmInfo["Nrrd255Path"] = RelPath(Nrrd255Path)
+
+    #######################################################################################
+    # set IntensityWindowing  :
+    Image3D_255 = sitk.Cast(
+        sitk.IntensityWindowing(
+            Image3D,
+            windowMinimum=Wmin,
+            windowMaximum=Wmax,
+            outputMinimum=0.0,
+            outputMaximum=255.0,
+        ),
+        sitk.sitkUInt8,
+    )
+
+    
+
+    
+
+    #############################################################################################
+    # MultiThreading PNG Writer:
+    #########################################################################################
+    def Image3DToAxialPNG(i, slices, AxialPngDir, Preffix):
+        img_Slice = slices[i]
+        img_Name = f"{Preffix}_Axial_img{i:04}.png"
+        image_path = join(AxialPngDir, img_Name)
+        cv2.imwrite(image_path, img_Slice)
+        image = bpy.data.images.load(image_path)
+        image.pack()
+        # print(f"{img_Name} was processed...")
+    def Image3DToCoronalPNG(i, slices, CoronalPngDir, Preffix):
+        img_Slice = slices[i]
+        img_Name = f"{Preffix}_Coronal_img{i:04}.png"
+        image_path = join(CoronalPngDir, img_Name)
+        cv2.imwrite(image_path, img_Slice)
+        image = bpy.data.images.load(image_path)
+        image.pack()
+        # print(f"{img_Name} was processed...")
+    def Image3DToSagitalPNG(i, slices, SagitalPngDir, Preffix):
+        img_Slice = slices[i]
+        img_Name = f"{Preffix}_Sagital_img{i:04}.png"
+        image_path = join(SagitalPngDir, img_Name)
+        cv2.imwrite(image_path, img_Slice)
+        image = bpy.data.images.load(image_path)
+        image.pack()
+        # print(f"{img_Name} was processed...")
+
+    #########################################################################################
+    # Get slices list :
+    
+    MaxSp = max(Vector(Sp))
+    if MaxSp < 0.25:
+        SampleRatio = round(MaxSp / 0.25, 2)
+        Image3D_255, new_size, new_spacing = ResizeImage(sitkImage=Image3D_255, Ratio=SampleRatio)
+        DcmInfo["RenderSz"] = new_size
+        DcmInfo["RenderSp"] = new_spacing
+        print('image resized for speed render')
+
+    # Convert Dicom to nrrd file :
+    sitk.WriteImage(Image3D_255, Nrrd255Path)
+
+    # make axial slices : 
+    Array = sitk.GetArrayFromImage(Image3D_255)
+    AxialSlices = [np.flipud(Array[i, :, :]) for i in range(Array.shape[0])]
+    CoronalSlices = [np.flipud(Array[:, i, :]) for i in range(Array.shape[1])]
+    SagitalSlices = [np.flipud(Array[:, :, i]) for i in range(Array.shape[2])]
+    # slices = [Image3D_255[:, :, i] for i in range(Image3D_255.GetDepth())]
+
+    Axialthreads = [
+        threading.Thread(
+            target=Image3DToAxialPNG,
+            args=[i, AxialSlices, AxialPngDir, Preffix],
+            daemon=True,
         )
-
-        # Set DcmInfo :
-
-        DcmInfo = dict(
-            {
-                "UserProjectDir": RelPath(UserProjectDir),
-                "Preffix": Preffix,
-                "RenderSz": Sz,
-                "RenderSp": Sp,
-                "PixelType": Image3D.GetPixelIDTypeAsString(),
-                "Wmin": Wmin,
-                "Wmax": Wmax,
-                "Size": Sz,
-                "Dims": Dims,
-                "Spacing": Sp,
-                "Origin": Origin,
-                "Direction": Direction,
-                "TransformMatrix": TransformMatrix,
-                "DirectionMatrix_4x4": DirectionMatrix_4x4,
-                "TransMatrix_4x4": TransMatrix_4x4,
-                "VtkTransform_4x4": VtkTransform_4x4,
-                "VolumeCenter": VCenter,
-            }
+        for i in range(len(AxialSlices))
+    ]
+    Coronalthreads = [
+        threading.Thread(
+            target=Image3DToCoronalPNG,
+            args=[i, CoronalSlices, CoronalPngDir, Preffix],
+            daemon=True,
         )
-
-        tags = dict(
-            {
-                "StudyDate": "0008|0020",
-                "PatientName": "0010|0010",
-                "PatientID": "0010|0020",
-                "BirthDate": "0010|0030",
-                "WinCenter": "0028|1050",
-                "WinWidth": "0028|1051",
-            }
+        for i in range(len(CoronalSlices))
+    ]
+    Sagitalthreads = [
+        threading.Thread(
+            target=Image3DToSagitalPNG,
+            args=[i, SagitalSlices, SagitalPngDir, Preffix],
+            daemon=True,
         )
-        for k, tag in tags.items():
+        for i in range(len(SagitalSlices))
+    ]
+    threads = Axialthreads+Coronalthreads+Sagitalthreads
+    for t in threads:
+        t.start()
 
-            if tag in reader.GetMetaDataKeys():
-                v = reader.GetMetaData(tag)
-
-            else:
-                v = ""
-
-            DcmInfo[k] = v
-            Image3D.SetMetaData(tag, v)
-
-        ###################################### debug_02 ##################################
-        debug_02 = Tcounter()
-        message = f"DcmInfo {Preffix} set (Time : {debug_02-debug_01} secondes)"
-        print(message)
-        # q.put("Dicom Info extracted...")
-        ##################################################################################
-
-        #######################################################################################
-        # Add directories :
-        SlicesDir = join(UserProjectDir, "Slices")
-        if not exists(SlicesDir):
-            os.makedirs(SlicesDir)
-        DcmInfo["SlicesDir"] = RelPath(SlicesDir)
-
-        PngDir = join(UserProjectDir, "PNG")
-        if not exists(PngDir):
-            os.makedirs(PngDir)
-
-        Nrrd255Path = join(UserProjectDir, f"{Preffix}_Image3D255.nrrd")
-
-        DcmInfo["Nrrd255Path"] = RelPath(Nrrd255Path)
-
-        #######################################################################################
-        # set IntensityWindowing  :
-        Image3D_255 = sitk.Cast(
-            sitk.IntensityWindowing(
-                Image3D,
-                windowMinimum=Wmin,
-                windowMaximum=Wmax,
-                outputMinimum=0.0,
-                outputMaximum=255.0,
-            ),
-            sitk.sitkUInt8,
-        )
-
-        # Convert Dicom to nrrd file :
-        # sitk.WriteImage(Image3D, NrrdHuPath)
-        sitk.WriteImage(Image3D_255, Nrrd255Path)
-
-        ################################## debug_03 ######################################
-        debug_03 = Tcounter()
-        message = f"Nrrd255 Export done!  (Time : {debug_03-debug_02} secondes)"
-        print(message)
-        # q.put("nrrd 3D image file saved...")
-        ##################################################################################
-
-        #############################################################################################
-        # MultiThreading PNG Writer:
-        #########################################################################################
-        def Image3DToPNG(i, slices, PngDir, Preffix):
-            img_Slice = slices[i]
-            img_Name = f"{Preffix}_img{i:04}.png"
-            image_path = join(PngDir, img_Name)
-            cv2.imwrite(image_path, img_Slice)
-            image = bpy.data.images.load(image_path)
-            image.pack()
-            # print(f"{img_Name} was processed...")
-
-        #########################################################################################
-        # Get slices list :
-        MaxSp = max(Vector(Sp))
-        if MaxSp < 0.25:
-            SampleRatio = round(MaxSp / 0.25, 2)
-            Image3D_255 = ResizeImage(sitkImage=Image3D_255, Ratio=SampleRatio)
-            DcmInfo["RenderSz"] = Image3D_255.GetSize()
-            DcmInfo["RenderSp"] = Image3D_255.GetSpacing()
-
-        Array = sitk.GetArrayFromImage(Image3D_255)
-        slices = [np.flipud(Array[i, :, :]) for i in range(Array.shape[0])]
-        # slices = [Image3D_255[:, :, i] for i in range(Image3D_255.GetDepth())]
-
-        threads = [
-            threading.Thread(
-                target=Image3DToPNG,
-                args=[i, slices, PngDir, Preffix],
-                daemon=True,
-            )
-            for i in range(len(slices))
-        ]
-
-        for t in threads:
-            t.start()
-
-        for t in threads:
-            t.join()
-
-        # os.removedirs(PngDir)
-        shutil.rmtree(PngDir)
-        DcmInfo["CT_Loaded"] = True
-        # Set DcmInfo property :
-        DcmInfoDict = eval(BDENTAL_4D_Props.DcmInfo)
-        DcmInfoDict[Preffix] = DcmInfo
-        BDENTAL_4D_Props.DcmInfo = str(DcmInfoDict)
-        BDENTAL_4D_Props.UserProjectDir = RelPath(BDENTAL_4D_Props.UserProjectDir)
-        bpy.ops.wm.save_mainfile()
-        # #################################### debug_04 ####################################
-        # debug_04 = Tcounter()
-        # message = (
-        #     f"PNG images exported (Time : {debug_04-debug_03} secondes)"
-        # )
-        # print(message)
-        # # q.put("PNG images saved...")
-        # ##################################################################################
-
-        # #################################### debug_05 ####################################
-        # debug_05 = Tcounter()
-        # message = f"{Preffix}_CT-SCAN.blend saved (Time = {debug_05-debug_04} secondes)"
-        # print(message)
-        # q.put("Blender project saved...")
-        ##################################################################################
-
-        #############################################################################################
-        finish = Tcounter()
-        message = f"Data Loaded in {finish-start} secondes"
-        print(message)
-        # q.put(message)
-        #############################################################################################
-        message = ["DICOM loaded successfully. "]
-        ShowMessageBox(message=message, icon="COLORSET_03_VEC")
-
-        return DcmInfo
-    ####### End Load_Dicom_fuction ##############
+    for t in threads:
+        t.join()
+    
+    shutil.rmtree(PngDir)
+    
+    DcmInfo["CT_Loaded"] = True
+    # Set DcmInfo property :
+    DcmInfoDict = eval(BDENTAL_4D_Props.DcmInfo)
+    DcmInfoDict[Preffix] = DcmInfo
+    
+    BDENTAL_4D_Props.DcmInfo = str(DcmInfoDict)
+    bpy.ops.wm.save_mainfile()
+    
+    return DcmInfo, message
+####### End Load_Dicom_fuction ##############
 
 
 #######################################################################################
@@ -447,24 +546,10 @@ def Load_Dicom_funtion(context, q):
 
 
 def Load_3DImage_function(context, q):
-
+    DcmInfo, message = [],[]
     BDENTAL_4D_Props = context.scene.BDENTAL_4D_Props
     UserProjectDir = AbsPath(BDENTAL_4D_Props.UserProjectDir)
     UserImageFile = AbsPath(BDENTAL_4D_Props.UserImageFile)
-
-    #######################################################################################
-
-    if not exists(UserProjectDir):
-
-        message = ["The Selected Project Directory Path is not valid ! "]
-        ShowMessageBox(message=message, icon="COLORSET_02_VEC")
-        return {"CANCELLED"}
-
-    if not exists(UserImageFile):
-        message = [" The Selected Image File Path is not valid ! "]
-
-        ShowMessageBox(message=message, icon="COLORSET_02_VEC")
-        return {"CANCELLED"}
 
     reader = sitk.ImageFileReader()
     IO = reader.GetImageIOFromFileName(UserImageFile)
@@ -474,20 +559,21 @@ def Load_3DImage_function(context, q):
         message = [
             f"{FileExt} files are not Supported! for more info about supported files please refer to Addon wiki "
         ]
-        ShowMessageBox(message=message, icon="COLORSET_01_VEC")
-        return {"CANCELLED"}
+        return DcmInfo, message
+        
 
     Image3D = sitk.ReadImage(UserImageFile)
     Depth = Image3D.GetDepth()
+    print(f'Depth : {Depth}')
 
-    if Depth == 0:
+    if Depth <= 1:
         message = [
             "Can't Build 3D Volume from 2D Image !",
             "for more info about supported files,",
             "please refer to Addon wiki",
         ]
-        ShowMessageBox(message=message, icon="COLORSET_01_VEC")
-        return {"CANCELLED"}
+        return DcmInfo, message
+        
 
     ImgFileName = os.path.split(UserImageFile)[1]
     BDENTAL_4D_nrrd = HU_Image = False
@@ -503,8 +589,7 @@ def Load_3DImage_function(context, q):
         message = [
             "Only Images with Hunsfield data or BDENTAL_4D nrrd images are supported !"
         ]
-        ShowMessageBox(message=message, icon="COLORSET_01_VEC")
-        return {"CANCELLED"}
+        return DcmInfo, message
     ###########################################################################################################
 
     else:
@@ -516,16 +601,9 @@ def Load_3DImage_function(context, q):
         Preffixs = list(DcmInfoDict.keys())
 
         for i in range(1, 100):
-            Preffix = f"BD4D{i:03}"
+            Preffix = f"BD4D_{i:03}"
             if not Preffix in Preffixs:
                 break
-        ########################################################
-        Split = split(UserProjectDir)
-        ProjectName = Split[-1] or split(Split[0])[-1]
-        BlendFile = f"{ProjectName}_CT-SCAN.blend"
-        Blendpath = join(UserProjectDir, BlendFile)
-
-        bpy.ops.wm.save_as_mainfile(filepath=Blendpath)
 
         # Start Reading Dicom data :
         ######################################################################################
@@ -584,16 +662,19 @@ def Load_3DImage_function(context, q):
 
         # Set DcmInfo :
 
-        DcmInfo = {
-                "UserProjectDir": RelPath(UserProjectDir),
+        DcmInfo = dict(
+            {
+                "SlicesDir" : "",
+                "Nrrd255Path":"",
                 "Preffix": Preffix,
                 "RenderSz": Sz,
                 "RenderSp": Sp,
                 "PixelType": Image3D.GetPixelIDTypeAsString(),
                 "Wmin": Wmin,
                 "Wmax": Wmax,
-                "Size": Sz,
                 "Dims": Dims,
+                "Size": Sz,
+                "BackupArray": "",
                 "Spacing": Sp,
                 "Origin": Origin,
                 "Direction": Direction,
@@ -602,50 +683,33 @@ def Load_3DImage_function(context, q):
                 "TransMatrix_4x4": TransMatrix_4x4,
                 "VtkTransform_4x4": VtkTransform_4x4,
                 "VolumeCenter": VCenter,
+                'AutoReconParameters' : '[None,None,None]'
+
             }
+        )
+
         
-
-        tags = {
-                "StudyDate": "0008|0020",
-                "PatientName": "0010|0010",
-                "PatientID": "0010|0020",
-                "BirthDate": "0010|0030",
-                "WinCenter": "0028|1050",
-                "WinWidth": "0028|1051",
-            }
-        
-
-        for k, tag in tags.items():
-
-            if tag in reader.GetMetaDataKeys():
-                v = reader.GetMetaData(tag)
-
-            else:
-                v = ""
-
-            DcmInfo[k] = v
-            Image3D.SetMetaData(tag, v)
 
         #######################################################################################
         # Add directories :
-        SlicesDir = join(UserProjectDir, "Slices")
-        if not exists(SlicesDir):
-            os.makedirs(SlicesDir)
-        DcmInfo["SlicesDir"] = RelPath(SlicesDir)
+        PngDir = join(UserProjectDir ,"PNG")
+        AxialPngDir = join(PngDir, "Axial")
+        CoronalPngDir = join(PngDir, "Coronal")
+        SagitalPngDir = join(PngDir, "Sagital")
 
-        PngDir = join(UserProjectDir, "PNG")
-        if not exists(PngDir):
-            os.makedirs(PngDir)
+        os.makedirs(AxialPngDir)
+        os.makedirs(CoronalPngDir)
+        os.makedirs(SagitalPngDir)
 
-        Nrrd255Path = join(UserProjectDir, f"{Preffix}_Image3D255.nrrd")
 
+
+        Nrrd255Path = join(UserProjectDir , f"{Preffix}_Image3D255.nrrd")
         DcmInfo["Nrrd255Path"] = RelPath(Nrrd255Path)
 
-        if BDENTAL_4D_nrrd:
+        #######################################################################################
+        if BDENTAL_4D_nrrd :
             Image3D_255 = Image3D
-
-        else:
-            #######################################################################################
+        else : 
             # set IntensityWindowing  :
             Image3D_255 = sitk.Cast(
                 sitk.IntensityWindowing(
@@ -659,16 +723,34 @@ def Load_3DImage_function(context, q):
             )
 
         # Convert Dicom to nrrd file :
-        # sitk.WriteImage(Image3D, NrrdHuPath)
         sitk.WriteImage(Image3D_255, Nrrd255Path)
+        # BackupArray = sitk.GetArrayFromImage(Image3D_255)
+        # DcmInfo["BackupArray"] = str(BackupArray.tolist())
+
 
         #############################################################################################
         # MultiThreading PNG Writer:
         #########################################################################################
-        def Image3DToPNG(i, slices, PngDir, Preffix):
+        def Image3DToAxialPNG(i, slices, AxialPngDir, Preffix):
             img_Slice = slices[i]
-            img_Name = f"{Preffix}_img{i:04}.png"
-            image_path = join(PngDir, img_Name)
+            img_Name = f"{Preffix}_Axial_img{i:04}.png"
+            image_path = join(AxialPngDir, img_Name)
+            cv2.imwrite(image_path, img_Slice)
+            image = bpy.data.images.load(image_path)
+            image.pack()
+            # print(f"{img_Name} was processed...")
+        def Image3DToCoronalPNG(i, slices, CoronalPngDir, Preffix):
+            img_Slice = slices[i]
+            img_Name = f"{Preffix}_Coronal_img{i:04}.png"
+            image_path = join(CoronalPngDir, img_Name)
+            cv2.imwrite(image_path, img_Slice)
+            image = bpy.data.images.load(image_path)
+            image.pack()
+            # print(f"{img_Name} was processed...")
+        def Image3DToSagitalPNG(i, slices, SagitalPngDir, Preffix):
+            img_Slice = slices[i]
+            img_Name = f"{Preffix}_Sagital_img{i:04}.png"
+            image_path = join(SagitalPngDir, img_Name)
             cv2.imwrite(image_path, img_Slice)
             image = bpy.data.images.load(image_path)
             image.pack()
@@ -679,46 +761,62 @@ def Load_3DImage_function(context, q):
         MaxSp = max(Vector(Sp))
         if MaxSp < 0.25:
             SampleRatio = round(MaxSp / 0.25, 2)
-            Image3D_255 = ResizeImage(sitkImage=Image3D_255, Ratio=SampleRatio)
-            DcmInfo["RenderSz"] = Image3D_255.GetSize()
-            DcmInfo["RenderSp"] = Image3D_255.GetSpacing()
+            Image3D_255, new_size, new_spacing = ResizeImage(sitkImage=Image3D_255, Ratio=SampleRatio)
+            DcmInfo["RenderSz"] = new_size
+            DcmInfo["RenderSp"] = new_spacing
+            print('image resized for speed render')
 
+        # make axial slices : 
         Array = sitk.GetArrayFromImage(Image3D_255)
-        slices = [np.flipud(Array[i, :, :]) for i in range(Array.shape[0])]
+        AxialSlices = [np.flipud(Array[i, :, :]) for i in range(Array.shape[0])]
+        CoronalSlices = [np.flipud(Array[:, i, :]) for i in range(Array.shape[1])]
+        SagitalSlices = [np.flipud(Array[:, :, i]) for i in range(Array.shape[2])]
         # slices = [Image3D_255[:, :, i] for i in range(Image3D_255.GetDepth())]
 
-        threads = [
+        Axialthreads = [
             threading.Thread(
-                target=Image3DToPNG,
-                args=[i, slices, PngDir, Preffix],
+                target=Image3DToAxialPNG,
+                args=[i, AxialSlices, AxialPngDir, Preffix],
                 daemon=True,
             )
-            for i in range(len(slices))
+            for i in range(len(AxialSlices))
         ]
-
+        Coronalthreads = [
+            threading.Thread(
+                target=Image3DToCoronalPNG,
+                args=[i, CoronalSlices, CoronalPngDir, Preffix],
+                daemon=True,
+            )
+            for i in range(len(CoronalSlices))
+        ]
+        Sagitalthreads = [
+            threading.Thread(
+                target=Image3DToSagitalPNG,
+                args=[i, SagitalSlices, SagitalPngDir, Preffix],
+                daemon=True,
+            )
+            for i in range(len(SagitalSlices))
+        ]
+        threads = Axialthreads+Coronalthreads+Sagitalthreads
         for t in threads:
             t.start()
 
         for t in threads:
             t.join()
 
-        # os.removedirs(PngDir)
-        shutil.rmtree(PngDir)
+        
+        shutil.rmtree(AxialPngDir)
+        shutil.rmtree(CoronalPngDir)
+        shutil.rmtree(SagitalPngDir)
         DcmInfo["CT_Loaded"] = True
-
         # Set DcmInfo property :
         DcmInfoDict = eval(BDENTAL_4D_Props.DcmInfo)
         DcmInfoDict[Preffix] = DcmInfo
         BDENTAL_4D_Props.DcmInfo = str(DcmInfoDict)
-        BDENTAL_4D_Props.UserProjectDir = RelPath(BDENTAL_4D_Props.UserProjectDir)
         bpy.ops.wm.save_mainfile()
-
-        #############################################################################################
-        finish = Tcounter()
-        print(f"Data Loaded in {finish-start} second(s)")
-        #############################################################################################
         
-        return DcmInfo
+
+        return DcmInfo, message
 
 
 ##########################################################################################
@@ -728,9 +826,17 @@ class BDENTAL_4D_OT_Volume_Render(bpy.types.Operator):
     """ Volume Render """
 
     bl_idname = "bdental4d.volume_render"
-    bl_label = "LOAD SCAN"
+    bl_label = "VOXEL 3D"
 
     q = Queue()
+    Voxel_Modes = ["FAST", "OPTIMAL", "FULL"]
+    items = []
+    for i in range(len(Voxel_Modes)):
+        item = (str(Voxel_Modes[i]), str(Voxel_Modes[i]), str(""), int(i))
+        items.append(item)
+
+    VoxelMode : EnumProperty(items=items, description="Voxel Mode", default="FAST")
+
 
     def execute(self, context):
 
@@ -743,24 +849,50 @@ class BDENTAL_4D_OT_Volume_Render(bpy.types.Operator):
         BDENTAL_4D_Props = context.scene.BDENTAL_4D_Props
 
         DataType = BDENTAL_4D_Props.DataType
-        if DataType == "DICOM Series":
-            DcmInfo = Load_Dicom_funtion(context, self.q)
-        if DataType == "3D Image File":
-            DcmInfo = Load_3DImage_function(context, self.q)
-        
-        UserProjectDir = AbsPath(BDENTAL_4D_Props.UserProjectDir)
-        Preffix = DcmInfo["Preffix"]
-        Wmin = DcmInfo["Wmin"]
-        Wmax = DcmInfo["Wmax"]
-        # PngDir = AbsPath(BDENTAL_4D_Props.PngDir)
-        print("\n##########################\n")
-        print("Voxel Rendering START...")
-        VolumeRender(DcmInfo, GpShader, DataBlendFile)
-        scn = bpy.context.scene
-        scn.render.engine = "BLENDER_EEVEE"
-        BDENTAL_4D_Props.GroupNodeName = GpShader
 
-        if GpShader == "VGS_Marcos_modified":
+        if DataType == "DICOM Series":
+            Serie = BDENTAL_4D_Props.Dicom_Series
+            if not 'Series' in Serie:
+
+                message = [" Please Organize DICOM data and retry ! "]
+                ShowMessageBox(message=message, icon="COLORSET_01_VEC")
+                return {"CANCELLED"}
+
+            else:
+                # Start Reading Dicom data :
+                ######################################################################################
+                UserDcmDir = AbsPath(BDENTAL_4D_Props.UserDcmDir)
+                DcmOrganizeDict = eval(BDENTAL_4D_Props.DcmOrganize)
+                DcmSerie = DcmOrganizeDict[UserDcmDir][Serie]['Files']
+                DcmInfo, message = Load_Dicom_funtion(context, self.q)
+                
+                
+                
+        if DataType == "3D Image File":
+            UserImageFile = AbsPath(BDENTAL_4D_Props.UserImageFile)
+            if not exists(UserImageFile):
+                message = [" The Selected Image File Path is not valid ! "]
+                ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+                return {"CANCELLED"}
+            
+            DcmInfo, message = Load_3DImage_function(context, self.q)
+
+        if message :
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+            return {"CANCELLED"}
+        else :    
+
+            Preffix = DcmInfo["Preffix"]
+            Wmin = DcmInfo["Wmin"]
+            Wmax = DcmInfo["Wmax"]
+            # PngDir = AbsPath(BDENTAL_4D_Props.PngDir)
+            print("\n##########################\n")
+            VolumeRender(DcmInfo, GpShader, DataBlendFile,self.VoxelMode)
+            print("setting volumes...")
+            scn = bpy.context.scene
+            scn.render.engine = "BLENDER_EEVEE"
+            BDENTAL_4D_Props.GroupNodeName = GpShader
+
             GpNode = bpy.data.node_groups.get(f"{Preffix}_{GpShader}")
             Low_Treshold = GpNode.nodes["Low_Treshold"].outputs[0]
             Low_Treshold.default_value = 600
@@ -769,70 +901,37 @@ class BDENTAL_4D_OT_Volume_Render(bpy.types.Operator):
             WmaxNode = GpNode.nodes["WmaxNode"].outputs[0]
             WmaxNode.default_value = Wmax
 
-            # newdriver = Low_Treshold.driver_add("default_value")
-            # newdriver.driver.type = "AVERAGE"
-            # var = newdriver.driver.variables.new()
-            # var.name = "Treshold"
-            # var.type = "SINGLE_PROP"
-            # var.targets[0].id_type = "SCENE"
-            # var.targets[0].id = bpy.context.scene
-            # var.targets[0].data_path = "BDENTAL_4D_Props.Treshold"
-            # newdriver.driver.expression = "Treshold"
+            
+            Soft,Bone,Teeth = eval(DcmInfo['AutoReconParameters'])
+            if Soft and Bone and Teeth :
+                BDENTAL_4D_Props.SoftTreshold = Soft
+                BDENTAL_4D_Props.BoneTreshold = Bone
+                BDENTAL_4D_Props.TeethTreshold = Teeth
+                BDENTAL_4D_Props.SoftBool = True
+                BDENTAL_4D_Props.BoneBool = True
+                BDENTAL_4D_Props.TeethBool = True
 
-        if GpShader == "VGS_Dakir_01":
-            # Add Treshold Driver :
-            GpNode = bpy.data.node_groups.get(f"{Preffix}_{GpShader}")
-            value = (600 - Wmin) / (Wmax - Wmin)
-            treshramp = GpNode.nodes["TresholdRamp"].color_ramp.elements[0] = value
+            BDENTAL_4D_Props.CT_Rendered = True
+            # bpy.ops.view3d.view_selected(use_all_regions=False)
+            bpy.ops.wm.save_mainfile()
 
-            # newdriver = treshramp.driver_add("position")
-            # newdriver.driver.type = "SCRIPTED"
-            # var = newdriver.driver.variables.new()
-            # var.name = "Treshold"
-            # var.type = "SINGLE_PROP"
-            # var.targets[0].id_type = "SCENE"
-            # var.targets[0].id = bpy.context.scene
-            # var.targets[0].data_path = "BDENTAL_4D_Props.Treshold"
-            # newdriver.driver.expression = f"(Treshold-{Wmin})/{Wmax-Wmin}"
+            message = ["DICOM loaded successfully. "]
+            print(message)
+            ShowMessageBox(message=message, icon="COLORSET_03_VEC")
 
-        BDENTAL_4D_Props.CT_Rendered = True
-        bpy.ops.view3d.view_selected(use_all_regions=False)
-        bpy.ops.wm.save_mainfile()
+            
+            Finish = Tcounter()
+            print(f"Finished (Time : {Finish-Start}")
 
-        # post_handlers = bpy.app.handlers.depsgraph_update_post
-        # [
-        #     post_handlers.remove(h)
-        #     for h in post_handlers
-        #     if h.__name__ == "BDENTAL_4D_TresholdUpdate"
-        # ]
-        # post_handlers.append(BDENTAL_4D_TresholdUpdate)
+            return {"FINISHED"}
 
-        # bpy.ops.wm.save_mainfile()
+    def invoke(self, context, event):
 
-        Finish = Tcounter()
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
+        
 
-        print(f"Finished (Time : {Finish-Start}")
-
-        return {"FINISHED"}
-
-
-class BDENTAL_4D_OT_TresholdUpdate(bpy.types.Operator):
-    """ Add treshold Update Handler  """
-
-    bl_idname = "bdental4d.tresholdupdate"
-    bl_label = "Update Treshold"
-
-    def execute(self, context):
-        post_handlers = bpy.app.handlers.depsgraph_update_post
-        [
-            post_handlers.remove(h)
-            for h in post_handlers
-            if h.__name__ == "BDENTAL_4D_TresholdUpdate"
-        ]
-        post_handlers.append(BDENTAL_4D_TresholdUpdate)
-
-        return {"FINISHED"}
-
+    
 
 ##########################################################################################
 ######################### BDENTAL_4D Add Slices : ########################################
@@ -845,40 +944,54 @@ class BDENTAL_4D_OT_AddSlices(bpy.types.Operator):
     bl_idname = "bdental4d.addslices"
     bl_label = "SLICE VOLUME"
 
+    ShowMPR : BoolProperty(description=" MPR ", default=False)
+
     def execute(self, context):
         BDENTAL_4D_Props = bpy.context.scene.BDENTAL_4D_Props
 
         Active_Obj = context.view_layer.objects.active
 
         if not Active_Obj:
-            message = [" Please select CTVOLUME or SEGMENTATION ! "]
+            message = [" Please select CTVOLUME ! "]
             ShowMessageBox(message=message, icon="COLORSET_02_VEC")
             return {"CANCELLED"}
         else:
             N = Active_Obj.name
-            Condition = N.startswith("BD") and ["_CTVolume" in N or "SEGMENTATION" in N]
+            Condition = "BD4D" in N and "_CTVolume" in N 
 
             if not Condition:
-                message = [" Please select CTVOLUME or SEGMENTATION ! "]
+                message = [" Please select CTVOLUME ! "]
                 ShowMessageBox(message=message, icon="COLORSET_02_VEC")
                 return {"CANCELLED"}
             else:
                 Vol = Active_Obj
-                Preffix = Vol.name.split('_')[0]
+                Preffix = Vol.name[:8]
                 DcmInfoDict = eval(BDENTAL_4D_Props.DcmInfo)
                 DcmInfo = DcmInfoDict[Preffix]
 
-                # SLICES_Coll = bpy.context.scene.collection.children.get('SLICES')
-                # if SLICES_Coll :
-                #     SLICES_Coll.hide_viewport = False
+                SlicesDir  = AbsPath(BDENTAL_4D_Props.SlicesDir)
+                if not exists(SlicesDir) :
+                    SlicesDir = tempfile.mkdtemp()
+                    BDENTAL_4D_Props.SlicesDir = SlicesDir
+                
 
-                AxialPlane = AddAxialSlice(Preffix, DcmInfo)
+                Nrrd255Path = AbsPath(DcmInfo["Nrrd255Path"])
+                if not exists(Nrrd255Path) :
+                    message = [" Can't find dicom data!", " Check for nrrd file in the Project Directory ! "]
+                    ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+                    return {"CANCELLED"}
+                
+                SLICES_Coll = bpy.data.collections.get('SLICES')
+                if SLICES_Coll :
+                    SLICES_Coll.hide_viewport = False
+
+                AxialPlane = AddAxialSlice(Preffix, DcmInfo, SlicesDir)
                 MoveToCollection(obj=AxialPlane, CollName="SLICES")
 
-                CoronalPlane = AddCoronalSlice(Preffix, DcmInfo)
+                CoronalPlane = AddCoronalSlice(Preffix, DcmInfo, SlicesDir)
                 MoveToCollection(obj=CoronalPlane, CollName="SLICES")
 
-                SagitalPlane = AddSagitalSlice(Preffix, DcmInfo)
+                SagitalPlane = AddSagitalSlice(Preffix, DcmInfo, SlicesDir)
                 MoveToCollection(obj=SagitalPlane, CollName="SLICES")
 
                 # Add Cameras :
@@ -913,6 +1026,12 @@ class BDENTAL_4D_OT_AddSlices(bpy.types.Operator):
                     SagitalPlane, CamDistance=100, ClipOffset=1
                 )
                 MoveToCollection(obj=SagitalCam, CollName="SLICES-CAMERAS")
+                rotation_euler = Euler((0.0, 0.0, pi / 2), "XYZ")
+                RotMtx = rotation_euler.to_matrix().to_4x4()
+                SagitalCam.matrix_world = SagitalCam.matrix_world @ RotMtx
+
+                SLICES_CAMERAS_Coll = bpy.data.collections.get("SLICES-CAMERAS")
+                SLICES_CAMERAS_Coll.hide_viewport = False
 
                 for obj in bpy.data.objects:
                     if obj.name == f"{Preffix}_SLICES_POINTER":
@@ -951,8 +1070,156 @@ class BDENTAL_4D_OT_AddSlices(bpy.types.Operator):
                 bpy.context.view_layer.objects.active = SLICES_POINTER
                 MoveToCollection(obj=SLICES_POINTER, CollName="SLICES_POINTERS")
 
+                if self.ShowMPR :
+                    bpy.ops.bdental4d.mpr()
                 return {"FINISHED"}
 
+    def invoke(self, context, event):
+
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
+
+class BDENTAL_4D_OT_MPR(bpy.types.Operator):
+    """ MultiView Toggle """
+
+    bl_idname = "bdental4d.mpr"
+    bl_label = "MPR"
+
+    def execute(self, context):
+
+        Active_Obj = bpy.context.view_layer.objects.active
+
+        if not Active_Obj:
+            message = [" Please select SLICES_POINTER "]
+            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+            return {"CANCELLED"}
+        else:
+            N = Active_Obj.name
+            Condition = (
+                N.startswith("BD4D")
+                and "_SLICES_POINTER" in N
+                and Active_Obj.select_get() == True
+            )
+
+            if not Condition:
+                List = [o for o in context.scene.objects if '_SLICES_POINTER' in o.name]
+                if List :
+                    message = [
+                        " Please select SLICES_POINTER ! "
+                    ]
+                else :
+                    message = [
+                        "To Add Multi-View Window :",
+                        "1 - Please select CTVOLUME",
+                        "2 - Click on < SLICE VOLUME > button",
+                        "AXIAL, CORONAL and SAGITAL slices will be added",
+                        "3 - Ensure SLICES_POINTER is Selected",
+                        "3 - Click <MPR> button",
+                    ]
+                ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+                return {"CANCELLED"}
+            else:
+                Preffix = Active_Obj.name[:8]
+                AxialPlane = bpy.data.objects.get(f"1_{Preffix}_AXIAL_SLICE")
+                CoronalPlane = bpy.data.objects.get(f"2_{Preffix}_CORONAL_SLICE")
+                SagitalPlane = bpy.data.objects.get(f"3_{Preffix}_SAGITAL_SLICE")
+                SLICES_POINTER = Active_Obj
+
+                if not AxialPlane or not CoronalPlane or not SagitalPlane:
+                    message = [
+                        "To Add Multi-View Window :",
+                        "1 - Please select CTVOLUME",
+                        "2 - Click on < SLICE VOLUME > button",
+                        "AXIAL, CORONAL and SAGITAL slices will be added",
+                        "3 - Ensure SLICES_POINTER is Selected",
+                        "3 - Click <MPR> button",
+                    ]
+                    ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+                    return {"CANCELLED"}
+
+                else:
+
+                    bpy.context.scene.unit_settings.scale_length = 0.001
+                    bpy.context.scene.unit_settings.length_unit = "MILLIMETERS"
+
+                    (
+                        MultiView_Window,
+                        OUTLINER,
+                        PROPERTIES,
+                        AXIAL,
+                        CORONAL,
+                        SAGITAL,
+                        VIEW_3D,
+                    ) = BDENTAL_4D_MultiView_Toggle(Preffix)
+                    MultiView_Screen = MultiView_Window.screen
+                    AXIAL_Space3D = [
+                        Space for Space in AXIAL.spaces if Space.type == "VIEW_3D"
+                    ][0]
+                    AXIAL_Region = [
+                        reg for reg in AXIAL.regions if reg.type == "WINDOW"
+                    ][0]
+
+                    CORONAL_Space3D = [
+                        Space for Space in CORONAL.spaces if Space.type == "VIEW_3D"
+                    ][0]
+                    CORONAL_Region = [
+                        reg for reg in CORONAL.regions if reg.type == "WINDOW"
+                    ][0]
+
+                    SAGITAL_Space3D = [
+                        Space for Space in SAGITAL.spaces if Space.type == "VIEW_3D"
+                    ][0]
+                    SAGITAL_Region = [
+                        reg for reg in SAGITAL.regions if reg.type == "WINDOW"
+                    ][0]
+                    # AXIAL Cam view toggle :
+
+                    AxialCam = bpy.data.objects.get(f"{AxialPlane.name}_CAM")
+                    AXIAL_Space3D.use_local_collections = True
+                    AXIAL_Space3D.use_local_camera = True
+                    AXIAL_Space3D.camera = AxialCam
+                    Override = {
+                        "window": MultiView_Window,
+                        "screen": MultiView_Screen,
+                        "area": AXIAL,
+                        "space_data": AXIAL_Space3D,
+                        "region": AXIAL_Region,
+                    }
+                    bpy.ops.view3d.view_camera(Override)
+
+                    # CORONAL Cam view toggle :
+                    CoronalCam = bpy.data.objects.get(f"{CoronalPlane.name}_CAM")
+                    CORONAL_Space3D.use_local_collections = True
+                    CORONAL_Space3D.use_local_camera = True
+                    CORONAL_Space3D.camera = CoronalCam
+                    Override = {
+                        "window": MultiView_Window,
+                        "screen": MultiView_Screen,
+                        "area": CORONAL,
+                        "space_data": CORONAL_Space3D,
+                        "region": CORONAL_Region,
+                    }
+                    bpy.ops.view3d.view_camera(Override)
+
+                    # AXIAL Cam view toggle :
+                    SagitalCam = bpy.data.objects.get(f"{SagitalPlane.name}_CAM")
+                    SAGITAL_Space3D.use_local_collections = True
+                    SAGITAL_Space3D.use_local_camera = True
+                    SAGITAL_Space3D.camera = SagitalCam
+                    Override = {
+                        "window": MultiView_Window,
+                        "screen": MultiView_Screen,
+                        "area": SAGITAL,
+                        "space_data": SAGITAL_Space3D,
+                        "region": SAGITAL_Region,
+                    }
+                    bpy.ops.view3d.view_camera(Override)
+
+                    bpy.ops.object.select_all(Override, action="DESELECT")
+                    SLICES_POINTER.select_set(True)
+                    bpy.context.view_layer.objects.active = SLICES_POINTER
+
+        return {"FINISHED"}
 
 ###############################################################################
 ####################### BDENTAL_4D_FULL VOLUME to Mesh : ################################
@@ -975,9 +1242,6 @@ class BDENTAL_4D_OT_MultiTreshSegment(bpy.types.Operator):
 
         bpy.ops.object.origin_set(type="ORIGIN_GEOMETRY", center="MEDIAN")
 
-        self.step7 = Tcounter()
-        self.TimingDict["Mesh Import"] = self.step7 - self.step6
-
         ############### step 8 : Add material... #########################
         mat = bpy.data.materials.get(obj.name) or bpy.data.materials.new(obj.name)
         mat.diffuse_color = SegmentColor
@@ -990,8 +1254,6 @@ class BDENTAL_4D_OT_MultiTreshSegment(bpy.types.Operator):
         bpy.context.object.modifiers["CorrectiveSmooth"].use_only_smooth = True
         bpy.ops.object.modifier_apply(modifier="CorrectiveSmooth")
 
-        self.step8 = Tcounter()
-        self.TimingDict["Add material"] = self.step8 - self.step7
         print(f"{Segment} Mesh Import Finished")
 
         return obj
@@ -1003,7 +1265,7 @@ class BDENTAL_4D_OT_MultiTreshSegment(bpy.types.Operator):
         # Load Infos :
         #########################################################################
         BDENTAL_4D_Props = bpy.context.scene.BDENTAL_4D_Props
-        UserProjectDir = AbsPath(BDENTAL_4D_Props.UserProjectDir)
+        UserProjectDir  = AbsPath(BDENTAL_4D_Props.UserProjectDir )
         DcmInfo = self.DcmInfo
         Origin = DcmInfo["Origin"]
         VtkTransform_4x4 = DcmInfo["VtkTransform_4x4"]
@@ -1014,12 +1276,12 @@ class BDENTAL_4D_OT_MultiTreshSegment(bpy.types.Operator):
 
         VtkMatrix = list(np.array(VtkMatrix_4x4).ravel())
 
-        SmoothIterations = SmthIter = 5
+        
         Thikness = 1
 
         SegmentTreshold = self.SegmentsDict[Segment]["Treshold"]
         SegmentColor = self.SegmentsDict[Segment]["Color"]
-        SegmentStlPath = join(UserProjectDir, f"{Segment}_SEGMENTATION.stl")
+        SegmentStlPath = join(UserProjectDir , f"{Segment}_SEGMENTATION.stl")
 
         # Convert Hu treshold value to 0-255 UINT8 :
         Treshold255 = HuTo255(Hu=SegmentTreshold, Wmin=Wmin, Wmax=Wmax)
@@ -1030,18 +1292,55 @@ class BDENTAL_4D_OT_MultiTreshSegment(bpy.types.Operator):
 
         ############### step 2 : Extracting mesh... #########################
         # print("Extracting mesh...")
+       
         vtkImage = sitkTovtk(sitkImage=Image3D)
 
         ExtractedMesh = vtk_MC_Func(vtkImage=vtkImage, Treshold=Treshold255)
         Mesh = ExtractedMesh
 
-        polysCount = Mesh.GetNumberOfPolys()
-        polysLimit = 800000
+        
 
         self.step2 = Tcounter()
         self.TimingDict["Mesh Extraction Time"] = self.step2 - self.step1
         print(f"{Segment} Mesh Extraction Finished")
-        ############### step 3 : mesh Reduction... #########################
+
+        # ############### step 3 : mesh Smoothing 1... #########################
+        # SmthIter = 3
+        # SmoothedMesh1 = vtkSmoothMesh(
+        #     q=self.q,
+        #     mesh=Mesh,
+        #     Iterations=SmthIter,
+        #     step="Mesh Smoothing 2",
+        #     start=0.79,
+        #     finish=0.82,
+        # )
+        # Mesh = SmoothedMesh1
+
+
+        self.step3 = Tcounter()
+        self.TimingDict["Mesh Smoothing 1 Time"] = self.step3 - self.step1
+        print(f"{Segment} Mesh Smoothing 1 Finished")
+
+        # ############### step 4 : mesh Smoothing... #########################
+
+        SmthIter = 20
+        SmoothedMesh2 = vtkWindowedSincPolyDataFilter(
+            q=self.q,
+            mesh=Mesh,
+            Iterations=SmthIter,
+            step="Mesh Smoothing 1",
+            start=0.76,
+            finish=0.78,
+        )
+
+        self.step4 = Tcounter()
+        self.TimingDict["Mesh Smoothing 2 Time"] = self.step4 - self.step3
+        print(f"{Segment} Mesh Smoothing 2 Finished")
+        Mesh = SmoothedMesh2
+        
+        ############### step 5 : mesh Reduction... #########################
+        polysCount = Mesh.GetNumberOfPolys()
+        polysLimit = 300000
         if polysCount > polysLimit:
 
             Reduction = round(1 - (polysLimit / polysCount), 2)
@@ -1055,39 +1354,30 @@ class BDENTAL_4D_OT_MultiTreshSegment(bpy.types.Operator):
             )
             Mesh = ReductedMesh
 
-        self.step3 = Tcounter()
-        self.TimingDict["Mesh Reduction Time"] = self.step3 - self.step2
+        self.step5 = Tcounter()
+        self.TimingDict["Mesh Reduction Time"] = self.step5 - self.step4
         print(f"{Segment} Mesh Reduction Finished")
-        ############### step 4 : mesh Smoothing... #########################
-        SmoothedMesh = vtkSmoothMesh(
-            q=self.q,
-            mesh=Mesh,
-            Iterations=SmthIter,
-            step="Mesh Smoothing",
-            start=0.76,
-            finish=0.78,
-        )
-
-        self.step4 = Tcounter()
-        self.TimingDict["Mesh Smoothing Time"] = self.step4 - self.step3
-        print(f"{Segment} Mesh Smoothing Finished")
-        ############### step 5 : Set mesh orientation... #########################
+       
+        
+        ############### step 6 : Set mesh orientation... #########################
         TransformedMesh = vtkTransformMesh(
-            mesh=SmoothedMesh,
+            mesh=Mesh,
             Matrix=VtkMatrix,
         )
-        self.step5 = Tcounter()
-        self.TimingDict["Mesh Orientation"] = self.step5 - self.step4
+        self.step6 = Tcounter()
+        self.TimingDict["Mesh Orientation"] = self.step6 - self.step5
         print(f"{Segment} Mesh Orientation Finished")
-        ############### step 6 : exporting mesh stl... #########################
+        Mesh = TransformedMesh
+
+        ############### step 7 : exporting mesh stl... #########################
         writer = vtk.vtkSTLWriter()
-        writer.SetInputData(TransformedMesh)
+        writer.SetInputData(Mesh)
         writer.SetFileTypeToBinary()
         writer.SetFileName(SegmentStlPath)
         writer.Write()
 
-        self.step6 = Tcounter()
-        self.TimingDict["Mesh Export"] = self.step6 - self.step5
+        self.step7 = Tcounter()
+        self.TimingDict["Mesh Export"] = self.step7 - self.step6
         print(f"{Segment} Mesh Export Finished")
         self.Exported.put([Segment, SegmentStlPath, SegmentColor])
 
@@ -1103,10 +1393,10 @@ class BDENTAL_4D_OT_MultiTreshSegment(bpy.types.Operator):
             ShowMessageBox(message=message, icon="COLORSET_02_VEC")
             return {"CANCELLED"}
         else:
-            Condition = CheckString(Active_Obj.name,["BD4D", "_CTVolume"]) and Active_Obj.select_get()
+            N = Active_Obj.name
             
 
-            if not Condition :
+            if not "BD4D" in N and not "_CTVolume" in N:
                 message = [" Please select CTVOLUME for segmentation ! "]
                 ShowMessageBox(message=message, icon="COLORSET_02_VEC")
                 return {"CANCELLED"}
@@ -1157,7 +1447,7 @@ class BDENTAL_4D_OT_MultiTreshSegment(bpy.types.Operator):
                 else:
 
                     self.Vol = Active_Obj
-                    self.Preffix = self.Vol.name.split('_')[0]
+                    self.Preffix = self.Vol.name[:8]
                     DcmInfoDict = eval(BDENTAL_4D_Props.DcmInfo)
                     self.DcmInfo = DcmInfoDict[self.Preffix]
                     self.Nrrd255Path = AbsPath(self.DcmInfo["Nrrd255Path"])
@@ -1183,7 +1473,7 @@ class BDENTAL_4D_OT_MultiTreshSegment(bpy.types.Operator):
                         MaxSp = max(Vector(Sp))
                         if MaxSp < 0.3:
                             SampleRatio = round(MaxSp / 0.3, 2)
-                            ResizedImage = ResizeImage(
+                            ResizedImage,_,_ = ResizeImage(
                                 sitkImage=Image3D, Ratio=SampleRatio
                             )
                             Image3D = ResizedImage
@@ -1220,6 +1510,7 @@ class BDENTAL_4D_OT_MultiTreshSegment(bpy.types.Operator):
                                     Segment, SegmentStlPath, SegmentColor
                                 )
                                 Imported_Meshes.append(obj)
+                                os.remove(SegmentStlPath)
                                 count += 1
                             else:
                                 sleep(0.1)
@@ -1240,6 +1531,7 @@ class BDENTAL_4D_OT_MultiTreshSegment(bpy.types.Operator):
                             obj.select_set(True)
                         self.Vol.select_set(True)
                         bpy.context.view_layer.objects.active = self.Vol
+                        bpy.ops.object.shade_flat()
                         bpy.ops.object.parent_set(type="OBJECT", keep_transform=True)
                         bpy.ops.object.select_all(action="DESELECT")
 
@@ -1251,7 +1543,6 @@ class BDENTAL_4D_OT_MultiTreshSegment(bpy.types.Operator):
                         print(self.TimingDict)
 
                         return {"FINISHED"}
-
 
 ###############################################################################
 ####################### BDENTAL_4D VOLUME to Mesh : ################################
@@ -1532,134 +1823,134 @@ class BDENTAL_4D_OT_MultiTreshSegment(bpy.types.Operator):
 #         return {"FINISHED"}
 
 
-class BDENTAL_4D_OT_MultiView(bpy.types.Operator):
-    """ MultiView Toggle """
+# class BDENTAL_4D_OT_MultiView(bpy.types.Operator):
+#     """ MultiView Toggle """
 
-    bl_idname = "bdental4d.multiview"
-    bl_label = "MULTI-VIEW"
+#     bl_idname = "bdental4d.multiview"
+#     bl_label = "MULTI-VIEW"
 
-    def execute(self, context):
+#     def execute(self, context):
 
-        Active_Obj = bpy.context.view_layer.objects.active
+#         Active_Obj = bpy.context.view_layer.objects.active
 
-        if not Active_Obj:
-            message = [" Please select CTVOLUME or SEGMENTATION ! "]
-            ShowMessageBox(message=message, icon="COLORSET_02_VEC")
-            return {"CANCELLED"}
-        else:
-            N = Active_Obj.name
-            Condition = [CheckString (N, ["BD4D", "_CTVolume"]) or \
-                        CheckString (N, ["BD4D", "SEGMENTATION"]) or \
-                        CheckString (N, ["BD4D", "_SLICES_POINTER"])] and \
-                        Active_Obj.select_get()
+#         if not Active_Obj:
+#             message = [" Please select CTVOLUME or SEGMENTATION ! "]
+#             ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+#             return {"CANCELLED"}
+#         else:
+#             N = Active_Obj.name
+#             Condition = [CheckString (N, ["BD4D", "_CTVolume"]) or \
+#                         CheckString (N, ["BD4D", "SEGMENTATION"]) or \
+#                         CheckString (N, ["BD4D", "_SLICES_POINTER"])] and \
+#                         Active_Obj.select_get()
 
-            if not Condition:
-                message = [
-                    " Please select CTVOLUME or SEGMENTATION or _SLICES_POINTER ! "
-                ]
-                ShowMessageBox(message=message, icon="COLORSET_02_VEC")
-                return {"CANCELLED"}
-            else:
-                Preffix = N.split('_')[0]
-                AxialPlane = bpy.data.objects.get(f"1_{Preffix}_AXIAL_SLICE")
-                CoronalPlane = bpy.data.objects.get(f"2_{Preffix}_CORONAL_SLICE")
-                SagitalPlane = bpy.data.objects.get(f"3_{Preffix}_SAGITAL_SLICE")
-                SLICES_POINTER = bpy.data.objects.get(f"{Preffix}_SLICES_POINTER")
+#             if not Condition:
+#                 message = [
+#                     " Please select CTVOLUME or SEGMENTATION or _SLICES_POINTER ! "
+#                 ]
+#                 ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+#                 return {"CANCELLED"}
+#             else:
+#                 Preffix = N.split('_')[0]
+#                 AxialPlane = bpy.data.objects.get(f"1_{Preffix}_AXIAL_SLICE")
+#                 CoronalPlane = bpy.data.objects.get(f"2_{Preffix}_CORONAL_SLICE")
+#                 SagitalPlane = bpy.data.objects.get(f"3_{Preffix}_SAGITAL_SLICE")
+#                 SLICES_POINTER = bpy.data.objects.get(f"{Preffix}_SLICES_POINTER")
 
-                if not AxialPlane or not CoronalPlane or not SagitalPlane:
-                    message = [
-                        "To Add Multi-View Window :",
-                        "1 - Please select CTVOLUME or SEGMENTATION",
-                        "2 - Click on < SLICE VOLUME > button",
-                        "AXIAL, CORONAL and SAGITAL slices will be added",
-                        "3 - Click <MULTI-VIEW> button",
-                    ]
-                    ShowMessageBox(message=message, icon="COLORSET_02_VEC")
-                    return {"CANCELLED"}
+#                 if not AxialPlane or not CoronalPlane or not SagitalPlane:
+#                     message = [
+#                         "To Add Multi-View Window :",
+#                         "1 - Please select CTVOLUME or SEGMENTATION",
+#                         "2 - Click on < SLICE VOLUME > button",
+#                         "AXIAL, CORONAL and SAGITAL slices will be added",
+#                         "3 - Click <MULTI-VIEW> button",
+#                     ]
+#                     ShowMessageBox(message=message, icon="COLORSET_02_VEC")
+#                     return {"CANCELLED"}
 
-                else:
+#                 else:
 
-                    bpy.context.scene.unit_settings.scale_length = 0.001
-                    bpy.context.scene.unit_settings.length_unit = "MILLIMETERS"
+#                     bpy.context.scene.unit_settings.scale_length = 0.001
+#                     bpy.context.scene.unit_settings.length_unit = "MILLIMETERS"
 
-                    (
-                        MultiView_Window,
-                        OUTLINER,
-                        PROPERTIES,
-                        AXIAL,
-                        CORONAL,
-                        SAGITAL,
-                        VIEW_3D,
-                    ) = BDENTAL_4D_MultiView_Toggle(Preffix)
-                    MultiView_Screen = MultiView_Window.screen
-                    AXIAL_Space3D = [
-                        Space for Space in AXIAL.spaces if Space.type == "VIEW_3D"
-                    ][0]
-                    AXIAL_Region = [
-                        reg for reg in AXIAL.regions if reg.type == "WINDOW"
-                    ][0]
+#                     (
+#                         MultiView_Window,
+#                         OUTLINER,
+#                         PROPERTIES,
+#                         AXIAL,
+#                         CORONAL,
+#                         SAGITAL,
+#                         VIEW_3D,
+#                     ) = BDENTAL_4D_MultiView_Toggle(Preffix)
+#                     MultiView_Screen = MultiView_Window.screen
+#                     AXIAL_Space3D = [
+#                         Space for Space in AXIAL.spaces if Space.type == "VIEW_3D"
+#                     ][0]
+#                     AXIAL_Region = [
+#                         reg for reg in AXIAL.regions if reg.type == "WINDOW"
+#                     ][0]
 
-                    CORONAL_Space3D = [
-                        Space for Space in CORONAL.spaces if Space.type == "VIEW_3D"
-                    ][0]
-                    CORONAL_Region = [
-                        reg for reg in CORONAL.regions if reg.type == "WINDOW"
-                    ][0]
+#                     CORONAL_Space3D = [
+#                         Space for Space in CORONAL.spaces if Space.type == "VIEW_3D"
+#                     ][0]
+#                     CORONAL_Region = [
+#                         reg for reg in CORONAL.regions if reg.type == "WINDOW"
+#                     ][0]
 
-                    SAGITAL_Space3D = [
-                        Space for Space in SAGITAL.spaces if Space.type == "VIEW_3D"
-                    ][0]
-                    SAGITAL_Region = [
-                        reg for reg in SAGITAL.regions if reg.type == "WINDOW"
-                    ][0]
-                    # AXIAL Cam view toggle :
+#                     SAGITAL_Space3D = [
+#                         Space for Space in SAGITAL.spaces if Space.type == "VIEW_3D"
+#                     ][0]
+#                     SAGITAL_Region = [
+#                         reg for reg in SAGITAL.regions if reg.type == "WINDOW"
+#                     ][0]
+#                     # AXIAL Cam view toggle :
 
-                    AxialCam = bpy.data.objects.get(f"{AxialPlane.name}_CAM")
-                    AXIAL_Space3D.use_local_collections = True
-                    AXIAL_Space3D.use_local_camera = True
-                    AXIAL_Space3D.camera = AxialCam
-                    Override = {
-                        "window": MultiView_Window,
-                        "screen": MultiView_Screen,
-                        "area": AXIAL,
-                        "space_data": AXIAL_Space3D,
-                        "region": AXIAL_Region,
-                    }
-                    bpy.ops.view3d.view_camera(Override)
+#                     AxialCam = bpy.data.objects.get(f"{AxialPlane.name}_CAM")
+#                     AXIAL_Space3D.use_local_collections = True
+#                     AXIAL_Space3D.use_local_camera = True
+#                     AXIAL_Space3D.camera = AxialCam
+#                     Override = {
+#                         "window": MultiView_Window,
+#                         "screen": MultiView_Screen,
+#                         "area": AXIAL,
+#                         "space_data": AXIAL_Space3D,
+#                         "region": AXIAL_Region,
+#                     }
+#                     bpy.ops.view3d.view_camera(Override)
 
-                    # CORONAL Cam view toggle :
-                    CoronalCam = bpy.data.objects.get(f"{CoronalPlane.name}_CAM")
-                    CORONAL_Space3D.use_local_collections = True
-                    CORONAL_Space3D.use_local_camera = True
-                    CORONAL_Space3D.camera = CoronalCam
-                    Override = {
-                        "window": MultiView_Window,
-                        "screen": MultiView_Screen,
-                        "area": CORONAL,
-                        "space_data": CORONAL_Space3D,
-                        "region": CORONAL_Region,
-                    }
-                    bpy.ops.view3d.view_camera(Override)
+#                     # CORONAL Cam view toggle :
+#                     CoronalCam = bpy.data.objects.get(f"{CoronalPlane.name}_CAM")
+#                     CORONAL_Space3D.use_local_collections = True
+#                     CORONAL_Space3D.use_local_camera = True
+#                     CORONAL_Space3D.camera = CoronalCam
+#                     Override = {
+#                         "window": MultiView_Window,
+#                         "screen": MultiView_Screen,
+#                         "area": CORONAL,
+#                         "space_data": CORONAL_Space3D,
+#                         "region": CORONAL_Region,
+#                     }
+#                     bpy.ops.view3d.view_camera(Override)
 
-                    # AXIAL Cam view toggle :
-                    SagitalCam = bpy.data.objects.get(f"{SagitalPlane.name}_CAM")
-                    SAGITAL_Space3D.use_local_collections = True
-                    SAGITAL_Space3D.use_local_camera = True
-                    SAGITAL_Space3D.camera = SagitalCam
-                    Override = {
-                        "window": MultiView_Window,
-                        "screen": MultiView_Screen,
-                        "area": SAGITAL,
-                        "space_data": SAGITAL_Space3D,
-                        "region": SAGITAL_Region,
-                    }
-                    bpy.ops.view3d.view_camera(Override)
+#                     # AXIAL Cam view toggle :
+#                     SagitalCam = bpy.data.objects.get(f"{SagitalPlane.name}_CAM")
+#                     SAGITAL_Space3D.use_local_collections = True
+#                     SAGITAL_Space3D.use_local_camera = True
+#                     SAGITAL_Space3D.camera = SagitalCam
+#                     Override = {
+#                         "window": MultiView_Window,
+#                         "screen": MultiView_Screen,
+#                         "area": SAGITAL,
+#                         "space_data": SAGITAL_Space3D,
+#                         "region": SAGITAL_Region,
+#                     }
+#                     bpy.ops.view3d.view_camera(Override)
 
-                    bpy.ops.object.select_all(Override, action="DESELECT")
-                    SLICES_POINTER.select_set(True)
-                    bpy.context.view_layer.objects.active = SLICES_POINTER
+#                     bpy.ops.object.select_all(Override, action="DESELECT")
+#                     SLICES_POINTER.select_set(True)
+#                     bpy.context.view_layer.objects.active = SLICES_POINTER
 
-        return {"FINISHED"}
+#         return {"FINISHED"}
 
 
 #######################################################################################
@@ -2510,7 +2801,7 @@ class BDENTAL_4D_OT_Survey(bpy.types.Operator):
     def execute(self, context):
         BDENTAL_4D_Props = bpy.context.scene.BDENTAL_4D_Props
         bpy.ops.object.mode_set(mode="OBJECT")
-        Old_Survey_mat = bpy.data.materials.get("BDENTAL4D_survey_mat")
+        Old_Survey_mat = bpy.data.materials.get("BDENTAL_4D_survey_mat")
         if Old_Survey_mat:
             OldmatSlotsIds = [
                 i
@@ -2526,14 +2817,14 @@ class BDENTAL_4D_OT_Survey(bpy.types.Operator):
         view_mtx = space3D.region_3d.view_matrix.copy()
         if not self.Model.data.materials[:]:
             ModelMat = bpy.data.materials.get(
-                "BDENTAL4D_Neutral_mat"
-            ) or bpy.data.materials.new("BDENTAL4D_Neutral_mat")
+                "BDENTAL_4D_Neutral_mat"
+            ) or bpy.data.materials.new("BDENTAL_4D_Neutral_mat")
             ModelMat.diffuse_color = (0.8, 0.8, 0.8, 1.0)
             self.Model.active_material = ModelMat
 
         Survey_mat = bpy.data.materials.get(
-            "BDENTAL4D_survey_mat"
-        ) or bpy.data.materials.new("BDENTAL4D_survey_mat")
+            "BDENTAL_4D_survey_mat"
+        ) or bpy.data.materials.new("BDENTAL_4D_survey_mat")
         Survey_mat.diffuse_color = self.SurveyColor
         self.Model.data.materials.append(Survey_mat)
         self.Model.active_material_index = len(self.Model.material_slots) - 1
@@ -2569,8 +2860,8 @@ class BDENTAL_4D_OT_Survey(bpy.types.Operator):
         bpy.ops.object.mode_set(mode="EDIT")
         bpy.context.tool_settings.mesh_select_mode = (True, False, False)
         Survey_Vg = obj.vertex_groups.get(
-            "BDENTAL4D_survey_vg"
-        ) or obj.vertex_groups.new(name="BDENTAL4D_survey_vg")
+            "BDENTAL_4D_survey_vg"
+        ) or obj.vertex_groups.new(name="BDENTAL_4D_survey_vg")
         # obj.vertex_groups.active_index = Survey_Vg.index
         bpy.ops.object.vertex_group_assign()
         bpy.ops.object.material_slot_assign()
@@ -4783,8 +5074,8 @@ class BDENTAL_4D_OT_SplintCutterAdd(bpy.types.Operator):
 
                     CuttingCurveAdd()
                     SplintCutter = context.object
-                    SplintCutter.name = "BDENTAL4D_Splint_Cut"
-                    BDENTAL_4D_Props.CurveCutterNameProp = "BDENTAL4D_Splint_Cut"
+                    SplintCutter.name = "BDENTAL_4D_Splint_Cut"
+                    BDENTAL_4D_Props.CurveCutterNameProp = "BDENTAL_4D_Splint_Cut"
                     SplintCutter.data.bevel_depth = 0.3
                     SplintCutter.data.extrude = 4
                     SplintCutter.data.offset = -0.3
@@ -4929,7 +5220,7 @@ class BDENTAL_4D_OT_SplintCutterCut(bpy.types.Operator):
         self.CurveCuttersList = [
             obj
             for obj in context.scene.objects
-            if obj.type == "CURVE" and obj.name.startswith("BDENTAL4D_Splint_Cut")
+            if obj.type == "CURVE" and obj.name.startswith("BDENTAL_4D_Splint_Cut")
         ]
 
         if not self.CurveCuttersList or not self.CuttingTarget:
@@ -5098,7 +5389,7 @@ class BDENTAL_4D_OT_CurveCutterCut(bpy.types.Operator):
         CurveCuttersList = [
             obj
             for obj in context.visible_objects
-            if obj.type == "CURVE" and obj.name.startswith("BDENTAL4D_Curve_Cut")
+            if obj.type == "CURVE" and obj.name.startswith("BDENTAL_4D_Curve_Cut")
         ]
 
         if not CurveCuttersList:
@@ -5681,7 +5972,8 @@ class BDENTAL_4D_OT_CurveCutter2_ShortPath(bpy.types.Operator):
             bpy.ops.object.join()
 
         CurveCutter = context.object
-
+        print("CurveCutter",CurveCutter)
+        print("CuttingTarget",CuttingTarget)
         bpy.ops.object.mode_set(mode="OBJECT")
         bpy.ops.object.select_all(action="DESELECT")
         CuttingTarget.select_set(True)
@@ -5911,7 +6203,7 @@ class BDENTAL_4D_OT_CurveCutterCut3(bpy.types.Operator):
         CurveCuttersList = [
             obj
             for obj in context.visible_objects
-            if obj.type == "CURVE" and obj.name.startswith("BDENTAL4D_Curve_Cut")
+            if obj.type == "CURVE" and obj.name.startswith("BDENTAL_4D_Curve_Cut")
         ]
 
         if not CurveCuttersList:
@@ -6942,7 +7234,7 @@ class BDENTAL_4D_OT_Matching2D3D(bpy.types.Operator):
 
                 bpy.ops.mesh.primitive_plane_add(location=Plane_loc, rotation=self.Cam_obj.rotation_euler)
                 self.ImagePlane = bpy.context.object
-                self.DSD_Coll = MoveToCollection(self.ImagePlane, 'BDENTAL4D_DSD')
+                self.DSD_Coll = MoveToCollection(self.ImagePlane, 'BDENTAL_4D_DSD')
                 self.ImagePlane.name = f"DSD_Plane_{self.Suffix}"
                 self.ImagePlane.dimensions = Plane_Dims
                 bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
@@ -7061,13 +7353,13 @@ class BDENTAL_4D_OT_Matching2D3D(bpy.types.Operator):
 classes = [
     BDENTAL_4D_OT_OpenManual,
     BDENTAL_4D_OT_Template,
+    BDENTAL_4D_OT_Organize,
     BDENTAL_4D_OT_Volume_Render,
     BDENTAL_4D_OT_ResetCtVolumePosition,
-    BDENTAL_4D_OT_TresholdUpdate,
     BDENTAL_4D_OT_AddSlices,
-    # BDENTAL_4D_OT_TreshSegment,
     BDENTAL_4D_OT_MultiTreshSegment,
-    BDENTAL_4D_OT_MultiView,
+    # BDENTAL_4D_OT_MultiView,
+    BDENTAL_4D_OT_MPR,
     BDENTAL_4D_OT_AddReferencePlanes,
     BDENTAL_4D_OT_CtVolumeOrientation,
     BDENTAL_4D_OT_AddMarkupPoint,
@@ -7117,7 +7409,6 @@ classes = [
     BDENTAL_4D_OT_PaintAreaMinus,
     BDENTAL_4D_OT_PaintCut,
     BDENTAL_4D_OT_AddTube,
-    # BDENTAL_4D_OT_AddDsdCamera,
     BDENTAL_4D_OT_Matching2D3D,
     BDENTAL_4D_OT_XrayToggle,
 ]
@@ -7129,10 +7420,11 @@ def register():
         bpy.utils.register_class(cls)
     post_handlers = bpy.app.handlers.depsgraph_update_post
     MyPostHandlers = [
-        "BDENTAL_4D_TresholdUpdate",
-        "AxialSliceUpdate",
-        "CoronalSliceUpdate",
-        "SagitalSliceUpdate",
+        "BDENTAL4D_TresholdMinUpdate",
+        "BDENTAL4D_TresholdMaxUpdate",
+        "BDENTAL4D_AxialSliceUpdate",
+        "BDENTAL4D_CoronalSliceUpdate",
+        "BDENTAL4D_SagitalSliceUpdate",
     ]
 
     # Remove old handlers :
@@ -7142,10 +7434,11 @@ def register():
             bpy.app.handlers.depsgraph_update_post.remove(h)
 
     handlers_To_Add = [
-        BDENTAL_4D_TresholdUpdate,
-        AxialSliceUpdate,
-        CoronalSliceUpdate,
-        SagitalSliceUpdate,
+        BDENTAL4D_TresholdMinUpdate,
+        BDENTAL4D_TresholdMaxUpdate,
+        BDENTAL4D_AxialSliceUpdate,
+        BDENTAL4D_CoronalSliceUpdate,
+        BDENTAL4D_SagitalSliceUpdate,
     ]
     for h in handlers_To_Add:
         post_handlers.append(h)
@@ -7159,10 +7452,11 @@ def unregister():
 
     post_handlers = bpy.app.handlers.depsgraph_update_post
     MyPostHandlers = [
-        "BDENTAL_4D_TresholdUpdate",
-        "AxialSliceUpdate",
-        "CoronalSliceUpdate",
-        "SagitalSliceUpdate",
+        "BDENTAL4D_TresholdMinUpdate",
+        "BDENTAL4D_TresholdMaxUpdate",
+        "BDENTAL4D_AxialSliceUpdate",
+        "BDENTAL4D_CoronalSliceUpdate",
+        "BDENTAL4D_SagitalSliceUpdate",
     ]
     handlers_To_Remove = [h for h in post_handlers if h.__name__ in MyPostHandlers]
 

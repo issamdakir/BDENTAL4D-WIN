@@ -64,81 +64,132 @@ class BDENTAL_4D_PT_ScanPanel(bpy.types.Panel):
 
     def draw(self, context):
 
-        BDENTAL_4D_Props = context.scene.BDENTAL_4D_Props
-        GroupNodeName = BDENTAL_4D_Props.GroupNodeName
-        VGS = bpy.data.node_groups.get(GroupNodeName)
 
-        # Draw Addon UI :
+        BDENTAL_4D_Props = context.scene.BDENTAL_4D_Props
+        Wmin, Wmax = -400, 3000
+
+        OrganizeInfoProp = BDENTAL_4D_Props.OrganizeInfoProp
         layout = self.layout
 
-        row = layout.row()
-        split = row.split()
-        col = split.column()
+        box = layout.box()
+        split = box.split(factor=1 / 3, align=False)
+        col= split.column()
         col.label(text="Project Directory :")
         col = split.column()
         col.prop(BDENTAL_4D_Props, "UserProjectDir", text="")
 
         if BDENTAL_4D_Props.UserProjectDir:
-
-            row = layout.row()
-            split = row.split()
-            col = split.column()
-            col.label(text="Scan Data Type :")
-            col = split.column()
+            box = layout.box()
+            split = box.split(factor=1 / 3, align=False)
+            col= split.column()
+            col.label(text="DataType :")
+            col= split.column()
             col.prop(BDENTAL_4D_Props, "DataType", text="")
 
             if BDENTAL_4D_Props.DataType == "DICOM Series":
 
-                row = layout.row()
-                split = row.split()
-                col = split.column()
-                col.label(text="DICOM Directory :")
-                col = split.column()
+                split = box.split(factor=1 / 3, align=False)
+                col= split.column()
+                col.label(text="DICOM Folder :")
+                col= split.column()
                 col.prop(BDENTAL_4D_Props, "UserDcmDir", text="")
-
                 if BDENTAL_4D_Props.UserDcmDir:
+                    split = box.split(factor=1 / 3, align=False)
+                    col= split.column()
+                    col.label(text="DICOM Series :")
+                    col= split.column()
+                    col.prop(BDENTAL_4D_Props, "Dicom_Series", text="")
 
-                    Box = layout.box()
-                    # Box.alert = True
-                    row = Box.row()
-                    row.alignment = "CENTER"
-                    row.scale_y = 2
-                    row.operator("bdental4d.volume_render", icon="IMPORT")
+
+                    if not BDENTAL_4D_Props.Dicom_Series.startswith('Series'):
+
+                        box = layout.box()
+                        row = box.row()
+                        row.operator(
+                                "bdental4d.organize"
+                            )
+                    else :
+
+                        serie = BDENTAL_4D_Props.Dicom_Series
+                        infoDict = eval(OrganizeInfoProp)
+                        info = infoDict[serie]
+                        Count, Name, Date, Descript = info['Count'], info['Patient Name'], info['Series Date'], info['Series Description']
+
+                        layout.separator()
+                        row = layout.row()
+                        row.label(text=" DICOM Series Info :")
+
+                        box = layout.box()
+                        row = box.row()
+                        row.label(text=f"Files count : {Count}")
+                        row = box.row()
+                        row.label(text=f"Patient Name : {Name}")
+                        row = box.row()
+                        row.label(text=f"Series Date : {Date}")
+                        row = box.row()
+                        row.label(text=f"Series Description : {Descript}")
+
+                        layout.separator()
+                        box = layout.box()
+                        row = box.row()
+                        row.operator(
+                                "bdental4d.volume_render"
+                            )
+
             if BDENTAL_4D_Props.DataType == "3D Image File":
 
-                row = layout.row()
-                split = row.split()
-                col = split.column()
-                col.label(text="3D Image File :")
-                col = split.column()
+                split = box.split(factor=1 / 3, align=False)
+                col= split.column()
+                col.label(text="3D IMAGE File :")
+                col= split.column()
                 col.prop(BDENTAL_4D_Props, "UserImageFile", text="")
 
                 if BDENTAL_4D_Props.UserImageFile:
+                    layout.separator()
+                    box = layout.box()
+                    row = box.row()
+                    row.operator(
+                            "bdental4d.volume_render"
+                        )
 
-                    Box = layout.box()
-                    # Box.alert = True
-                    row = Box.row()
-                    row.alignment = "CENTER"
-                    row.scale_y = 2
-                    row.operator("bdental4d.volume_render", icon="IMPORT")
         if context.object:
             N = context.object.name
-            if N.startswith("BD") and "CTVolume" in N:
-                row = layout.row()
-                row.operator("bdental4d.reset_ctvolume_position")
+            if "BD4D" in N and ("_CTVolume" in N or "_SLICES_POINTER" in N) :
+                Preffix = N[0:8]
+                DcmInfoDict = eval(BDENTAL_4D_Props.DcmInfo)
+                DcmInfo = DcmInfoDict[Preffix]
+                AutoReconParameters = eval(DcmInfo['AutoReconParameters'])
+                
+                Soft,Bone,Teeth = eval(DcmInfo['AutoReconParameters'])
+
                 row = layout.row()
                 row.label(text=f"Threshold {Wmin} to {Wmax} HU :")
-                row = layout.row()
-                row.prop(BDENTAL_4D_Props, "Treshold", text="TRESHOLD", slider=True)
+
+                box = layout.box()
+                row = box.row()
+                row.prop(BDENTAL_4D_Props, "TresholdMin", text="TRESHOLD Minimum", slider=True)
+                row = box.row()
+                row.prop(BDENTAL_4D_Props, "TresholdMax", text="TRESHOLD Maximum", slider=True)
 
                 layout.separator()
 
                 row = layout.row()
-                row.label(text="Segments :")
+                row.label(text="DICOM TO MESH :")
+
+                Box = layout.box()
+
+                if not Soft or not Bone or not Teeth :
+                    row = Box.row()
+                    row.label(text="Manual Reconstruction :")
+                if Soft and Bone and Teeth :
+                    row = Box.row()
+                    row.label(text="Automatic Reconstruction Parameters :")
+                    row = Box.row()
+                    row.label(text=f"Soft : {Soft}, Bone : {Bone}, Teeth : {Teeth}")
 
                 Box = layout.box()
                 row = Box.row()
-                row.prop(BDENTAL_4D_Props, "SoftTreshold", text="Soft Tissue")
+                row.prop(BDENTAL_4D_Props, "SoftTreshold", text="Soft Tissu")
                 row.prop(BDENTAL_4D_Props, "SoftSegmentColor", text="")
                 row.prop(BDENTAL_4D_Props, "SoftBool", text="")
                 row = Box.row()
@@ -155,16 +206,118 @@ class BDENTAL_4D_PT_ScanPanel(bpy.types.Panel):
                 row = Box.row()
                 row.operator("bdental4d.multitresh_segment")
 
-            if N.startswith("BD") and [
-                "_CTVolume" in N or "SEGMENTATION" in N or "_SLICES_POINTER" in N
-            ]:
+                layout.separator()
 
-                row = Box.row()
-                split = row.split()
-                col = split.column()
-                col.operator("bdental4d.addslices", icon="EMPTY_AXIS")
-                col = split.column()
-                col.operator("bdental4d.multiview")
+                row = layout.row()
+                row.label(text="SLICES :")
+                box = layout.box()
+                row = box.row()
+                row.operator("bdental4d.addslices", icon="EMPTY_AXIS")
+                row.operator("bdental4d.mpr")
+
+        # ########################################
+
+        # BDENTAL_4D_Props = context.scene.BDENTAL_4D_Props
+        # GroupNodeName = BDENTAL_4D_Props.GroupNodeName
+        # VGS = bpy.data.node_groups.get(GroupNodeName)
+
+        # # Draw Addon UI :
+        # layout = self.layout
+
+        # row = layout.row()
+        # split = row.split()
+        # col = split.column()
+        # col.label(text="Project Directory :")
+        # col = split.column()
+        # col.prop(BDENTAL_4D_Props, "UserProjectDir", text="")
+
+        # if BDENTAL_4D_Props.UserProjectDir:
+
+        #     row = layout.row()
+        #     split = row.split()
+        #     col = split.column()
+        #     col.label(text="Scan Data Type :")
+        #     col = split.column()
+        #     col.prop(BDENTAL_4D_Props, "DataType", text="")
+
+        #     if BDENTAL_4D_Props.DataType == "DICOM Series":
+
+        #         row = layout.row()
+        #         split = row.split()
+        #         col = split.column()
+        #         col.label(text="DICOM Directory :")
+        #         col = split.column()
+        #         col.prop(BDENTAL_4D_Props, "UserDcmDir", text="")
+
+        #         if BDENTAL_4D_Props.UserDcmDir:
+
+        #             Box = layout.box()
+        #             # Box.alert = True
+        #             row = Box.row()
+        #             row.alignment = "CENTER"
+        #             row.scale_y = 2
+        #             row.operator("bdental4d.volume_render", icon="IMPORT")
+        #     if BDENTAL_4D_Props.DataType == "3D Image File":
+
+        #         row = layout.row()
+        #         split = row.split()
+        #         col = split.column()
+        #         col.label(text="3D Image File :")
+        #         col = split.column()
+        #         col.prop(BDENTAL_4D_Props, "UserImageFile", text="")
+
+        #         if BDENTAL_4D_Props.UserImageFile:
+
+        #             Box = layout.box()
+        #             # Box.alert = True
+        #             row = Box.row()
+        #             row.alignment = "CENTER"
+        #             row.scale_y = 2
+        #             row.operator("bdental4d.volume_render", icon="IMPORT")
+        # if context.object:
+        #     N = context.object.name
+        #     if N.startswith("BD") and "CTVolume" in N:
+        #         row = layout.row()
+        #         row.operator("bdental4d.reset_ctvolume_position")
+        #         row = layout.row()
+        #         row.label(text=f"Threshold {Wmin} to {Wmax} HU :")
+        #         row = layout.row()
+        #         row.prop(BDENTAL_4D_Props, "Treshold", text="TRESHOLD", slider=True)
+
+        #         layout.separator()
+
+        #         row = layout.row()
+        #         row.label(text="Segments :")
+
+        #         Box = layout.box()
+        #         row = Box.row()
+        #         row.prop(BDENTAL_4D_Props, "SoftTreshold", text="Soft Tissu")
+        #         row.prop(BDENTAL_4D_Props, "SoftSegmentColor", text="")
+        #         row.prop(BDENTAL_4D_Props, "SoftBool", text="")
+        #         row = Box.row()
+        #         row.prop(BDENTAL_4D_Props, "BoneTreshold", text="Bone")
+        #         row.prop(BDENTAL_4D_Props, "BoneSegmentColor", text="")
+        #         row.prop(BDENTAL_4D_Props, "BoneBool", text="")
+
+        #         row = Box.row()
+        #         row.prop(BDENTAL_4D_Props, "TeethTreshold", text="Teeth")
+        #         row.prop(BDENTAL_4D_Props, "TeethSegmentColor", text="")
+        #         row.prop(BDENTAL_4D_Props, "TeethBool", text="")
+
+        #         Box = layout.box()
+        #         row = Box.row()
+        #         row.operator("bdental4d.multitresh_segment")
+
+        #     if N.startswith("BD") and [
+        #         "_CTVolume" in N or "SEGMENTATION" in N or "_SLICES_POINTER" in N
+        #     ]:
+
+        #         row = Box.row()
+        #         split = row.split()
+        #         col = split.column()
+        #         col.operator("bdental4d.addslices", icon="EMPTY_AXIS")
+        #         col = split.column()
+        #         col.operator("bdental4d.multiview")
 
 
 class BDENTAL_4D_PT_MeshesTools_Panel(bpy.types.Panel):
