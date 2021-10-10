@@ -5389,7 +5389,7 @@ class BDENTAL_4D_OT_CurveCutterCut(bpy.types.Operator):
         CurveCuttersList = [
             obj
             for obj in context.visible_objects
-            if obj.type == "CURVE" and obj.name.startswith("BDENTAL_4D_Curve_Cut")
+            if obj.type == "CURVE" and obj.name.startswith("BDENTAL4D_Curve_Cut")
         ]
 
         if not CurveCuttersList:
