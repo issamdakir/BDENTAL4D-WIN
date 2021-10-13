@@ -2845,7 +2845,22 @@ def add_square_cutter(context):
 
 ###########################################################################
 # Add BDENTAL_4D MultiView :
+def getLocalCollIndex(collName) :
+    assert bpy.data.collections
+    collNames = [col.name for col in bpy.context.scene.collection.children]
+    
+    if collName in collNames :
+        index = collNames.index(collName)
+        return index+1
+    else : return None
 def BDENTAL_4D_MultiView_Toggle(Preffix):
+    COLLS = bpy.context.view_layer.layer_collection.children
+    collectionState = {col:col.hide_viewport for col in COLLS}
+    for col in COLLS :
+        col.hide_viewport = False
+
+    for col in bpy.data.collections :
+        col.hide_viewport = False
 
     WM = bpy.context.window_manager
 
@@ -2961,7 +2976,10 @@ def BDENTAL_4D_MultiView_Toggle(Preffix):
     MultiView_Screen.areas[5].type = "PROPERTIES"
 
     # Set MultiView Areas 3D prefferences :
-    for MultiView_Area3D in MultiView_Screen.areas:
+    ##### Hide local collections :
+    collNames = [col.name for col in bpy.context.scene.collection.children if not ('SLICES' in col.name or 'SLICES_POINTERS' in col.name or "GUIDE Components" in col.name )]
+    
+    for i, MultiView_Area3D in enumerate(MultiView_Screen.areas):
 
         if MultiView_Area3D.type == "VIEW_3D":
             MultiView_Space3D = [
@@ -2976,6 +2994,13 @@ def BDENTAL_4D_MultiView_Toggle(Preffix):
             }
 
             bpy.ops.wm.tool_set_by_id(Override, name="builtin.move")
+            MultiView_Space3D.use_local_collections = True
+            if not i == 4 : 
+                for collName in collNames :
+                    index = getLocalCollIndex(collName)
+                    bpy.ops.object.hide_collection(Override, collection_index=index,toggle=True)
+
+
             MultiView_Space3D.overlay.show_text = True
             MultiView_Space3D.show_region_ui = False
             MultiView_Space3D.show_region_toolbar = True
@@ -2994,7 +3019,7 @@ def BDENTAL_4D_MultiView_Toggle(Preffix):
             MultiView_Space3D.shading.studio_light = "outdoor.sl"
             MultiView_Space3D.shading.color_type = "TEXTURE"
             MultiView_Space3D.shading.background_type = "VIEWPORT"
-            MultiView_Space3D.shading.background_color = [0.7, 0.7, 0.7]
+            MultiView_Space3D.shading.background_color = [0.0, 0.0, 0.0]#[0.7, 0.7, 0.7]
 
             MultiView_Space3D.shading.type = "MATERIAL"
             # 'Material' Shading Light method :
@@ -3021,6 +3046,9 @@ def BDENTAL_4D_MultiView_Toggle(Preffix):
     CORONAL = TopRight = MultiView_Screen.areas[0]
     SAGITAL = DownRight = MultiView_Screen.areas[2]
     VIEW_3D = DownMiddle = MultiView_Screen.areas[4]
+
+    for col in COLLS :
+        col.hide_viewport = collectionState[col]
 
     #    TopMiddle.header_text_set("AXIAL")
     #    TopRight.header_text_set("CORONAL")

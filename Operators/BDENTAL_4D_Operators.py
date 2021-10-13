@@ -1,9 +1,9 @@
-import os, stat, sys, shutil, math, threading,pickle
+import os, stat, sys, shutil, math, threading,pickle,glob
 from math import degrees, radians, pi, ceil, floor, sqrt
 import numpy as np
 from time import sleep, perf_counter as Tcounter
 from queue import Queue
-from os.path import join, dirname, abspath, exists, split
+from os.path import join, dirname, abspath, exists, split, basename
 from importlib import reload
 
 import gpu
@@ -37,7 +37,7 @@ from .BDENTAL_4D_Utils import *
 Addon_Enable(AddonName="mesh_looptools", Enable=True)
 
 addon_dir = dirname(dirname(abspath(__file__)))
-DataBlendFile = join(addon_dir, "Resources", "BlendData", "BDENTAL_4D_BlendData.blend")
+DataBlendFile = join(addon_dir, "Resources", "BlendData", "BDENTAL4D_BlendData.blend")
 
 GpShader = "VGS_Marcos_modified_MinMax"#"VGS_Marcos_modified"  # "VGS_Marcos_01" "VGS_Dakir_01"
 Wmin = -400
@@ -54,7 +54,7 @@ class BDENTAL_4D_OT_OpenManual(bpy.types.Operator):
 
     def execute(self, context):
 
-        Manual_Path = join(addon_dir, "Resources", "BDENTAL_4D User Manual.pdf")
+        Manual_Path = join(addon_dir, "Resources", "BDENTAL4D User Manual.pdf")
         os.startfile(Manual_Path)
         return {"FINISHED"}
 
@@ -71,6 +71,13 @@ class BDENTAL_4D_OT_Template(bpy.types.Operator):
         default=" Please Restart Blender after",
         description="",
     )
+    Themes = [ basename(f).split('.')[0] for f in glob.glob(join(addon_dir,'Resources', '*')) if f.endswith('xml')]
+    items = []
+    for i in range(len(Themes)):
+        item = (str(Themes[i]), str(Themes[i]), str(""), int(i))
+        items.append(item)
+
+    ThemesProp : EnumProperty(items=items, description="Voxel Mode", default=Themes[0])
 
     def execute(self, context):
 
@@ -82,10 +89,10 @@ class BDENTAL_4D_OT_Template(bpy.types.Operator):
         # Install or load BDENTAL_4D theme :
         ScriptsPath = dirname(dirname(addon_dir))
         BDENTAL_4D_Theme_installed = join(
-            ScriptsPath, "presets", "interface_theme", "BDENTAL_4D_Theme.xml"
+            ScriptsPath, "presets", "interface_theme", self.ThemesProp+".xml"
         )
         if not exists(BDENTAL_4D_Theme_installed):
-            BDENTAL_4D_Theme = join(addon_dir, "Resources", "BDENTAL_4D_Theme.xml")
+            BDENTAL_4D_Theme = join(addon_dir, "Resources", self.ThemesProp+".xml")
             bpy.ops.preferences.theme_install(filepath=BDENTAL_4D_Theme)
 
         bpy.ops.script.execute_preset(
@@ -162,7 +169,7 @@ def GetMaxSerie(UserDcmDir):
 
 
 class BDENTAL_4D_OT_Organize(bpy.types.Operator):
-    """ Volume Render """
+    """ DICOM Organize """
 
     bl_idname = "bdental4d.organize"
     bl_label = "ORGANIZE DICOM"
@@ -262,14 +269,23 @@ class BDENTAL_4D_OT_Organize(bpy.types.Operator):
         
         BDENTAL_4D_Props.OrganizeInfoProp = str(Message)
 
-        Split = split(UserProjectDir )
-        ProjectName = Split[-1] or Split[-2]
-        BlendFile = f"{ProjectName}_CT-SCAN.blend"
-        Blendpath = join(UserProjectDir , BlendFile)
+        ProjectName = BDENTAL_4D_Props.ProjectNameProp
 
+        # Save Blend File :
+        BlendFile = f"{ProjectName}.blend"
+        Blendpath = join(UserProjectDir , BlendFile)
         bpy.ops.wm.save_as_mainfile(filepath=Blendpath)
         BDENTAL_4D_Props.UserProjectDir = RelPath(UserProjectDir)
         bpy.ops.wm.save_mainfile()
+
+        # Split = split(UserProjectDir )
+        # ProjectName = Split[-1] or Split[-2]
+        # BlendFile = f"{ProjectName}_CT-SCAN.blend"
+        # Blendpath = join(UserProjectDir , BlendFile)
+
+        # bpy.ops.wm.save_as_mainfile(filepath=Blendpath)
+        # BDENTAL_4D_Props.UserProjectDir = RelPath(UserProjectDir)
+        # bpy.ops.wm.save_mainfile()
 
         # file1 = join(UserDcmDir, os.listdir(UserDcmDir)[1])
         # reader = sitk.ImageFileReader()
@@ -535,7 +551,6 @@ def Load_Dicom_funtion(context, q):
     DcmInfoDict[Preffix] = DcmInfo
     
     BDENTAL_4D_Props.DcmInfo = str(DcmInfoDict)
-    bpy.ops.wm.save_mainfile()
     
     return DcmInfo, message
 ####### End Load_Dicom_fuction ##############
@@ -550,6 +565,16 @@ def Load_3DImage_function(context, q):
     BDENTAL_4D_Props = context.scene.BDENTAL_4D_Props
     UserProjectDir = AbsPath(BDENTAL_4D_Props.UserProjectDir)
     UserImageFile = AbsPath(BDENTAL_4D_Props.UserImageFile)
+    ProjectName = BDENTAL_4D_Props.ProjectNameProp
+
+    # Save Blend File :
+    BlendFile = f"{ProjectName}.blend"
+    Blendpath = join(UserProjectDir , BlendFile)
+    
+    bpy.ops.wm.save_as_mainfile(filepath=Blendpath)
+
+    BDENTAL_4D_Props.UserProjectDir = RelPath(UserProjectDir)
+    bpy.ops.wm.save_mainfile()
 
     reader = sitk.ImageFileReader()
     IO = reader.GetImageIOFromFileName(UserImageFile)
@@ -703,7 +728,7 @@ def Load_3DImage_function(context, q):
 
 
 
-        Nrrd255Path = join(UserProjectDir , f"{Preffix}_Image3D255.nrrd")
+        Nrrd255Path = join(AbsPath(UserProjectDir) , f"{Preffix}_Image3D255.nrrd")
         DcmInfo["Nrrd255Path"] = RelPath(Nrrd255Path)
 
         #######################################################################################
@@ -813,8 +838,6 @@ def Load_3DImage_function(context, q):
         DcmInfoDict = eval(BDENTAL_4D_Props.DcmInfo)
         DcmInfoDict[Preffix] = DcmInfo
         BDENTAL_4D_Props.DcmInfo = str(DcmInfoDict)
-        bpy.ops.wm.save_mainfile()
-        
 
         return DcmInfo, message
 
@@ -914,6 +937,8 @@ class BDENTAL_4D_OT_Volume_Render(bpy.types.Operator):
             BDENTAL_4D_Props.CT_Rendered = True
             # bpy.ops.view3d.view_selected(use_all_regions=False)
             bpy.ops.wm.save_mainfile()
+            print('Blend file path 2nd: ', bpy.data.filepath)       
+
 
             message = ["DICOM loaded successfully. "]
             print(message)
@@ -1388,7 +1413,7 @@ class BDENTAL_4D_OT_MultiTreshSegment(bpy.types.Operator):
         BDENTAL_4D_Props = bpy.context.scene.BDENTAL_4D_Props
         Active_Obj = bpy.context.view_layer.objects.active
 
-        if not Active_Obj:
+        if not bpy.context.view_layer.objects.active :
             message = [" Please select CTVOLUME for segmentation ! "]
             ShowMessageBox(message=message, icon="COLORSET_02_VEC")
             return {"CANCELLED"}
@@ -1402,6 +1427,7 @@ class BDENTAL_4D_OT_MultiTreshSegment(bpy.types.Operator):
                 return {"CANCELLED"}
 
             else:
+                print('Active object name :',N)
 
                 self.Soft = BDENTAL_4D_Props.SoftBool
                 self.Bone = BDENTAL_4D_Props.BoneBool
@@ -2518,9 +2544,7 @@ class BDENTAL_4D_OT_AddImplantSleeve(bpy.types.Operator):
 
             return {"CANCELLED"}
 
-        if not context.active_object.select_get() or not context.object.name.startswith(
-            "IMPLANT"
-        ):
+        if not context.active_object.select_get() or not "IMPLANT" in context.active_object.name :
             message = message = ["Please select the Implant!"]
             ShowMessageBox(message=message, icon="COLORSET_02_VEC")
 
@@ -2651,12 +2675,13 @@ class BDENTAL_4D_OT_AddImplant(bpy.types.Operator):
 
     def AddImplant(self, context):
         ImplantLibraryBlendFile = join(
-            addon_dir, "Resources", "BlendData", f"{self.ImplantLibrary}.blend"
+            addon_dir, "Resources", "BlendData", "BDENTAL4D_Implants_Library.blend"
         )
-        filename = f"IMPLANT_{self.Implant_Diameter}_{self.Implant_Lenght}"
+        filename = f"{self.Implant_Diameter}_{self.Implant_Lenght}_IMPLANT_({self.ImplantLibrary})"
         directory = join(ImplantLibraryBlendFile, "Object")
+        
         bpy.ops.wm.append(directory=directory, filename=filename)
-        self.Implant = context.selected_objects[0]
+        self.Implant = bpy.data.objects.get(filename)
         context.view_layer.objects.active = self.Implant
 
     def execute(self, context):
@@ -3344,6 +3369,7 @@ class BDENTAL_4D_OT_add_offset(bpy.types.Operator):
 
         bpy.ops.object.mode_set(mode="OBJECT")
         bpy.ops.object.modifier_add(type="DISPLACE")
+        bpy.context.object.modifiers["Displace"].mid_level = 0
         bpy.context.object.modifiers["Displace"].strength = offset
         bpy.ops.object.modifier_apply(modifier="Displace")
 
@@ -5389,7 +5415,7 @@ class BDENTAL_4D_OT_CurveCutterCut(bpy.types.Operator):
         CurveCuttersList = [
             obj
             for obj in context.visible_objects
-            if obj.type == "CURVE" and obj.name.startswith("BDENTAL_4D_Curve_Cut")
+            if obj.type == "CURVE" and obj.name.startswith("BDENTAL4D_Curve_Cut") 
         ]
 
         if not CurveCuttersList:
@@ -6203,7 +6229,7 @@ class BDENTAL_4D_OT_CurveCutterCut3(bpy.types.Operator):
         CurveCuttersList = [
             obj
             for obj in context.visible_objects
-            if obj.type == "CURVE" and obj.name.startswith("BDENTAL_4D_Curve_Cut")
+            if obj.type == "CURVE" and obj.name.startswith("BDENTAL4D_Curve_Cut")
         ]
 
         if not CurveCuttersList:

@@ -22,7 +22,7 @@
 # ##### END GPL LICENSE BLOCK #####
 ##############################################################################################
 bl_info = {
-    "name": "BDENTAL-4D-Win",  ###################Addon name
+    "name": "BDENTAL-4D-WIN",  ###################Addon name
     "author": "Essaid Issam Dakir DMD, Ilya Fomenco DMD",
     "version": (1, 0, 0),
     "blender": (2, 90, 1),  ################# Blender working version

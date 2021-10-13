@@ -65,19 +65,11 @@ class BDENTAL_4D_Props(bpy.types.PropertyGroup):
     # CT_Scan props :
     #############################################################################################
     #####################
-    Dicom_Series: EnumProperty(items = OrganizeSeriesEnumProp_callback, description="Dicom series")
-    OrganizeInfoProp: StringProperty(
-        name="OrganizeInfo",
-        default='{}',
-        description="Organize Information",
+    ProjectNameProp: StringProperty(
+        name="Project Name",
+        default='Unknowen',
+        description="Project Name",
     )
-    SlicesDir: StringProperty(
-        name="SlicesDir",
-        default="",
-        description="Temporary Slices directory",
-        subtype="DIR_PATH",
-    )
-
     UserProjectDir: StringProperty(
         name="UserProjectDir",
         default="",
@@ -98,6 +90,20 @@ class BDENTAL_4D_Props(bpy.types.PropertyGroup):
         description="User Image File Path",
         subtype="FILE_PATH",
     )
+
+    Dicom_Series: EnumProperty(items = OrganizeSeriesEnumProp_callback, description="Dicom series")
+    OrganizeInfoProp: StringProperty(
+        name="OrganizeInfo",
+        default='{}',
+        description="Organize Information",
+    )
+    SlicesDir: StringProperty(
+        name="SlicesDir",
+        default="",
+        description="Temporary Slices directory",
+        subtype="DIR_PATH",
+    )
+
 
     #####################
 
@@ -288,7 +294,7 @@ class BDENTAL_4D_Props(bpy.types.PropertyGroup):
         default="Christian Brenes Teeth Library",
     )
 
-    ImplantLibList = ["BDENTAL_4D_Implant_Library"]
+    ImplantLibList = ["NEOBIOTECH_IS_II_ACTIVE"]
     items = []
     for i in range(len(ImplantLibList)):
         item = (str(ImplantLibList[i]), str(ImplantLibList[i]), str(""), int(i))
@@ -297,7 +303,7 @@ class BDENTAL_4D_Props(bpy.types.PropertyGroup):
     ImplantLibrary: EnumProperty(
         items=items,
         description="Implant Library",
-        default="BDENTAL_4D_Implant_Library",
+        default="NEOBIOTECH_IS_II_ACTIVE",
     )
     #######################
     SleeveDiameter: FloatProperty(

@@ -74,6 +74,13 @@ class BDENTAL_4D_PT_ScanPanel(bpy.types.Panel):
         box = layout.box()
         split = box.split(factor=1 / 3, align=False)
         col= split.column()
+        col.label(text="Project Name :")
+        col = split.column()
+        col.prop(BDENTAL_4D_Props, "ProjectNameProp", text="")
+
+        box = layout.box()
+        split = box.split(factor=1 / 3, align=False)
+        col= split.column()
         col.label(text="Project Directory :")
         col = split.column()
         col.prop(BDENTAL_4D_Props, "UserProjectDir", text="")
